@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden; /* Critical: Prevent body scroll, handle scroll in content area */
+  direction: rtl; /* Critical: Enforce Arabic Right-to-Left */
+  text-align: right;
+  background-color: #0b1120; /* Updated from user */
+  color: #f1f5f9;
+}
+
+/* --- Sleek Webkit Scrollbar Styling --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a; 
+}
+::-webkit-scrollbar-thumb {
+  background: #334155; 
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981; 
+}
+
+/* --- Page Fade-In Animation --- */
+.page-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* PrimeReact Overrides for Dark Mode */
+.p-card {
+  background: rgba(30, 41, 59, 0.7) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(71, 85, 105, 0.3) !important;
+  color: white !important;
+}
+
+/* --- Global PrimeReact RTL Table Alignment Fix --- */
+.p-datatable .p-datatable-thead > tr > th {
+    text-align: right !important;
+}
+
+.p-datatable .p-datatable-thead > tr > th .p-column-header-content {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important; /* Forces right alignment in RTL */
+    gap: 0.5rem;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+    text-align: right !important;
+    direction: rtl;
+}
+
+/* Ensure the pagination matches the layout */
+.p-paginator {
+    direction: ltr !important; /* Keeps the arrow directions logical */
+}
+
+/* ─────────────────────────────────────────────────────────
+   SCREEN: hide the print template during normal app usage.
+───────────────────────────────────────────────────────── */
+@media screen {
+    #print-template {
+        display: none !important;
+        visibility: hidden !important;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────
+   PRINT: Bulletproof full-page breakout strategy.
+   The template lives inside a narrow grid column on screen.
+   We must escape that column completely and paint the full
+   A4 paper width — hence position:fixed + 100vw.
+───────────────────────────────────────────────────────── */
+@media print {
+
+    /* 1. White paper, preserve colour accuracy */
+    html, body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    /* 2. Black-hole every element in the app */
+    body * { visibility: hidden !important; }
+
+    /* 3. Reveal ONLY the template and its descendants */
+    #print-template,
+    #print-template * { visibility: visible !important; }
+
+    /* 4. THE FIX — escape the parent grid column entirely.
+          position:fixed + 100vw breaks out of any containing
+          block and covers the full paper width. */
+    #print-template {
+        display: block !important;
+        position: fixed !important;   /* breaks out of all parent constraints */
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;      /* guaranteed full paper width */
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;        /* PrintWrapper's own 20mm padding takes over */
+        background: #ffffff !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+        z-index: 99999 !important;
+    }
+
+    /* 5. Preserve the dark enterprise table header */
+    #print-template thead tr th {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+    }
+
+    /* 6. Alternating row shading */
+    #print-template tbody tr:nth-child(even) td {
+        background-color: #f8fafc !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    #print-template tbody tr:nth-child(odd) td {
+        background-color: #ffffff !important;
+    }
+
+    /* 7. Table geometry */
+    #print-template table {
+        width: 100% !important;
+        table-layout: auto !important;  /* auto lets columns size to content */
+        border-collapse: collapse !important;
+    }
+
+    /* 8. Cell text */
+    #print-template th,
+    #print-template td {
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        box-sizing: border-box !important;
+    }
+
+    /* 9. No row splits across pages */
+    #print-template tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* 10. Strip all shadows */
+    #print-template * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    /* 11. A4 page — zero browser margin so we control spacing */
+    @page {
+        size: A4 portrait;
+        margin: 0;
+    }
+}
+
+/* =========================================
+   FAILSAFE ER DIAGRAM STYLES (NO TAILWIND)
+   ========================================= */
+.erd-wrapper{display:flex;width:100%;height:calc(100vh - 64px);background-color:#0B1120;color:#f8fafc;overflow:hidden;direction:rtl;font-family:'Segoe UI',Tahoma,sans-serif;user-select:none;}
+.erd-canvas-area{flex:1;position:relative;overflow:hidden;}
+.erd-grid-bg{position:absolute;width:4000px;height:4000px;left:-1000px;top:-1000px;background-image:radial-gradient(circle at 2px 2px,rgba(255,255,255,0.08) 1px,transparent 0);background-size:40px 40px;pointer-events:none;}
+.erd-node{position:absolute;border-radius:12px;border:2px solid;display:flex;flex-direction:column;cursor:pointer;transition:transform 0.2s ease,box-shadow 0.2s ease;backdrop-filter:blur(8px);background-color:rgba(15,23,42,0.85);}
+.erd-node:hover{transform:scale(1.05);z-index:30!important;}
+.erd-node-selected{transform:scale(1.07)!important;z-index:40!important;}
+.erd-node-header{padding:6px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.5);font-size:11px;font-family:monospace;letter-spacing:1px;border-radius:10px 10px 0 0;}
+.erd-node-body{flex:1;display:flex;justify-content:center;align-items:center;font-size:17px;font-weight:bold;color:white;text-align:center;padding:8px;}
+.erd-sidebar{width:350px;background-color:#0F172A;border-right:1px solid #1e293b;display:flex;flex-direction:column;z-index:50;overflow-y:auto;box-shadow:-10px 0 30px rgba(0,0,0,0.7);flex-shrink:0;}
+.erd-panel{padding:24px;border-bottom:1px solid #1e293b;}
+.erd-attr-row{background:#1E293B;border:1px solid #334155;padding:12px;border-radius:8px;margin-bottom:10px;}
+.erd-attr-row:last-child{margin-bottom:0;}
+.erd-controls{position:absolute;z-index:50;background:rgba(15,23,42,0.95);border:1px solid #1e293b;border-radius:12px;display:flex;padding:8px;gap:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);backdrop-filter:blur(8px);}
+.erd-btn{background:transparent;color:#cbd5e1;border:none;cursor:pointer;padding:10px 14px;border-radius:8px;font-size:16px;transition:background 0.2s,color 0.2s;display:flex;align-items:center;justify-content:center;line-height:1;}
+.erd-btn:hover{background:#334155;color:white;}
+.erd-empty{padding:40px;text-align:center;color:#64748b;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.erd-method-row{color:#cbd5e1;border-bottom:1px solid rgba(51,65,85,0.5);padding-bottom:8px;margin-bottom:8px;display:flex;gap:8px;font-family:monospace;font-size:13px;}
+.erd-method-row:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0;}
+
