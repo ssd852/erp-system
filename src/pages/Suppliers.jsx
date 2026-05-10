@@ -6,7 +6,6 @@ import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { useToast } from '../context/ToastContext';
-import SqlInsight from '../components/SqlInsight';
 
 const Suppliers = () => {
     const [suppliers, setSuppliers] = useState([]);
@@ -150,7 +149,6 @@ const Suppliers = () => {
                 </DataTable>
             </div>
 
-            <SqlInsight query="SELECT * FROM suppliers ORDER BY id ASC;" title="عرض استعلام قاعدة البيانات (الموردين)" />
 
             <Dialog visible={dialogVisible} style={{ width: '450px' }} header={isEdit ? "تعديل بيانات المورد" : "إضافة مورد جديد"} modal className="p-fluid" onHide={hideDialog} dir="rtl">
                 <div className="field mt-4">

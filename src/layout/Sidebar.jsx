@@ -39,7 +39,6 @@ const Sidebar = () => {
       header: '🛠️ النظام الذكي',
       items: [
         { label: 'التقارير الشاملة', icon: 'pi pi-print',    path: '/reports' },
-        { label: 'إدارة الأقسام',   icon: 'pi pi-cog',      path: '/departments' },
         { label: 'محرك SQL',         icon: 'pi pi-database', path: '/sql' },
         { label: 'المساعد الذكي',   icon: 'pi pi-sparkles', path: '/ai' },
         { label: 'محلل البيانات',       icon: 'pi pi-sitemap',  path: '/analyzer' },

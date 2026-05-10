@@ -14,7 +14,6 @@ import PurchaseInvoices from './pages/PurchaseInvoices';
 import Checks from './pages/Checks';
 import JournalEntries from './pages/JournalEntries';
 import FixedAssets from './pages/FixedAssets';
-import DepartmentManager from './pages/DepartmentManager';
 import Reports from './pages/Reports';
 import SqlEngine from './pages/SqlEngine';
 import AiAssistant from './pages/AiAssistant';
@@ -160,7 +159,6 @@ function App() {
               <Route path="/checks" element={<Checks />} />
               <Route path="/assets" element={<FixedAssets />} />
               <Route path="/reports" element={<Reports />} />
-              <Route path="/departments" element={<DepartmentManager />} />
               <Route path="/sql" element={<SqlEngine />} />
               <Route path="/ai" element={<AiAssistant />} />
               <Route path="/analyzer" element={<DependencyAnalyzer />} />

@@ -8,7 +8,6 @@ import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { Dropdown } from 'primereact/dropdown';
 import { useToast } from '../context/ToastContext';
-import SqlInsight from '../components/SqlInsight';
 
 const Checks = () => {
     const [checks, setChecks] = useState([]);
@@ -176,7 +175,6 @@ const Checks = () => {
                 </DataTable>
             </div>
 
-            <SqlInsight query="SELECT * FROM checks ORDER BY id ASC;" title="عرض استعلام قاعدة البيانات (الشيكات)" />
 
             <Dialog visible={dialogVisible} style={{ width: '450px' }} header={isEdit ? "تعديل بيانات الشيك" : "إضافة شيك جديد"} modal className="p-fluid" onHide={hideDialog} dir="rtl">
                 <div className="field mt-4">
