@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import Sidebar from './layout/Sidebar';
 import Topbar from './layout/Topbar';
@@ -127,6 +127,16 @@ function AppLayout() {
 }
 
 function App() {
+  useEffect(() => {
+    // Aggressively kill offline databases but PRESERVE Supabase auth tokens
+    Object.keys(localStorage).forEach(key => {
+      if (!key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    });
+    sessionStorage.clear();
+  }, []);
+
   return (
     <ErrorBoundary>
       <ToastProvider>

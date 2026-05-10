@@ -14,26 +14,33 @@ const SqlEngine = () => {
   const [error,        setError]        = useState(null);
   const [columns,      setColumns]      = useState([]);
   const { showToast } = useToast();
-  const [queryHistory, setQueryHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sql_query_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [queryHistory, setQueryHistory] = useState([]);
+  const [userId, setUserId] = useState('guest');
+
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+        const uid = user?.id ? user.id.replace(/-/g, '_') : 'guest';
+        setUserId(uid);
+        try {
+            const saved = localStorage.getItem(`sql_query_history_${uid}`);
+            if (saved) setQueryHistory(JSON.parse(saved));
+        } catch {}
+    });
+  }, []);
 
   // ─── Save a successful query to the persistent audit trail ───────
   const saveToHistory = (executedQuery) => {
     if (!executedQuery.trim()) return;
     setQueryHistory(prev => {
       const deduped = [executedQuery, ...prev.filter(q => q !== executedQuery)].slice(0, 10);
-      try { localStorage.setItem('sql_query_history', JSON.stringify(deduped)); } catch {}
+      try { localStorage.setItem(`sql_query_history_${userId}`, JSON.stringify(deduped)); } catch {}
       return deduped;
     });
   };
 
   const clearHistory = () => {
     setQueryHistory([]);
-    try { localStorage.removeItem('sql_query_history'); } catch {}
+    try { localStorage.removeItem(`sql_query_history_${userId}`); } catch {}
   };
 
   const runQuery = async (overrideQuery) => {

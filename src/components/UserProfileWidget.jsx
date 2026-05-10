@@ -80,6 +80,8 @@ const UserProfileWidget = () => {
 
     const handleLogout = async () => {
         setLoading(true);
+        localStorage.clear();
+        sessionStorage.clear();
         await supabase.auth.signOut();
         window.location.href = '/login';
     };

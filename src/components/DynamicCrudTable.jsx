@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Inbox, Pencil, Trash2 } from 'lucide-react';
-import { supabase } from '../config/supabaseClient';
 import { useToast } from '../context/ToastContext';
+import { supabase } from '../config/supabaseClient';
 
 const getNestedValue = (row, path) => {
   if (!path) return undefined;
@@ -69,9 +69,13 @@ const DynamicCrudTable = ({
 
     try {
       setInternalLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('يرجى تسجيل الدخول أولاً');
+
       const { data: fetchedRows, error } = await supabase
         .from(normalizedTableName)
         .select(selectQuery)
+        .eq('user_id', user.id)
         .order(orderBy, { ascending: orderAscending });
 
       if (error) throw error;
@@ -91,14 +95,19 @@ const DynamicCrudTable = ({
       if (!normalizedTableName) return;
 
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('يرجى تسجيل الدخول أولاً');
+
         const isEdit = item?.[primaryKey] !== undefined && item?.[primaryKey] !== null;
-        const payload = { ...(item || {}) };
+        // Inject user_id implicitly on every save
+        const payload = { ...(item || {}), user_id: user.id };
 
         if (isEdit) {
           const { error } = await supabase
             .from(normalizedTableName)
             .update(payload)
-            .eq(primaryKey, item[primaryKey]);
+            .eq(primaryKey, item[primaryKey])
+            .eq('user_id', user.id);
 
           if (error) throw error;
           showToast('success', 'نجاح', 'تم تحديث البيانات');
@@ -123,8 +132,15 @@ const DynamicCrudTable = ({
       if (!normalizedTableName) return;
 
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('يرجى تسجيل الدخول أولاً');
+
         const rowId = item?.[primaryKey];
-        const { error } = await supabase.from(normalizedTableName).delete().eq(primaryKey, rowId);
+        const { error } = await supabase
+          .from(normalizedTableName)
+          .delete()
+          .eq(primaryKey, rowId)
+          .eq('user_id', user.id);
 
         if (error) throw error;
 
