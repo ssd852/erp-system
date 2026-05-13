@@ -44,6 +44,7 @@ const Sidebar = () => {
         { label: 'محلل البيانات',       icon: 'pi pi-sitemap',  path: '/analyzer' },
         { label: 'المخطط الهيكلي (ERD)', icon: 'pi pi-sitemap',  path: '/erd' },
         { label: 'التقرير الأكاديمي',    icon: 'pi pi-database', path: '/academic-report' },
+        { label: 'أكواد إنشاء الجداول', icon: 'pi pi-code',     path: '/db-schema' },
       ]
     }
   ];

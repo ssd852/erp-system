@@ -21,6 +21,7 @@ import DependencyAnalyzer from './pages/DependencyAnalyzer';
 import ERDiagram from './pages/ERDiagram';
 import ComprehensiveReport from './pages/ComprehensiveReport';
 import AcademicReport from './pages/AcademicReport';
+import DatabaseSchema from './components/DatabaseSchema';
 import CurrencyWidget from './components/CurrencyWidget';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
@@ -165,6 +166,7 @@ function App() {
               <Route path="/erd" element={<ERDiagram />} />
               <Route path="/report" element={<ComprehensiveReport />} />
               <Route path="/academic-report" element={<AcademicReport />} />
+              <Route path="/db-schema" element={<DatabaseSchema />} />
             </Route>
 
             {/* Catch-all 404 Route */}
