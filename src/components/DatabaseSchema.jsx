@@ -263,7 +263,7 @@ const FUNCS = new Set([
 
 function tokenize(sql) {
   // Split preserving delimiters
-  const tokens = sql.split(/(\s+|[(),;]|'[^']*'|--[^\n]*/g)).filter(Boolean);
+  const tokens = sql.split(/(\s+|[(),;]|'[^']*'|--[^\n]*)/g).filter(Boolean);
   return tokens.map((tok, i) => {
     const upper = tok.toUpperCase().replace(/[(),;]/g, '');
     if (KEYWORDS.has(upper))   return <span key={i} style={{ color: '#818cf8', fontWeight: 700 }}>{tok}</span>;
