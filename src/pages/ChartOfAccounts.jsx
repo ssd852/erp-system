@@ -3,17 +3,17 @@ import { supabase } from '../config/supabaseClient';
 import { useToast } from '../context/ToastContext';
 import { Plus, Edit2, Trash2, Search, X } from 'lucide-react';
 
-const Employees = () => {
-    const [employees, setEmployees] = useState([]);
+const ChartOfAccounts = () => {
+    const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [currentEmployee, setCurrentEmployee] = useState({ id: null, full_name: '', position: '', salary: 0, hire_date: '' });
+    const [currentAccount, setCurrentAccount] = useState({ id: null, account_name: '', account_type: '', balance: 0 });
     const [isEdit, setIsEdit] = useState(false);
     const { showToast } = useToast();
 
-    const fetchEmployees = async () => {
+    const fetchAccounts = async () => {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -23,50 +23,50 @@ const Employees = () => {
         }
 
         const { data, error } = await supabase
-            .from('employees')
+            .from('chart_of_accounts')
             .select('*')
             .eq('user_id', user.id)
             .order('id', { ascending: true });
 
         if (error) {
-            console.error('Error fetching employees:', error);
-            showToast('error', 'خطأ', 'فشل جلب بيانات الموظفين');
+            console.error('Error fetching accounts:', error);
+            showToast('error', 'خطأ', 'فشل جلب دليل الحسابات');
         } else {
-            setEmployees(data || []);
+            setAccounts(data || []);
         }
         setLoading(false);
     };
 
     useEffect(() => {
-        fetchEmployees();
+        fetchAccounts();
     }, []);
 
-    const filteredEmployees = employees.filter(emp => 
-        (emp.full_name && emp.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (emp.position && emp.position.toLowerCase().includes(searchQuery.toLowerCase()))
+    const filteredAccounts = accounts.filter(acc => 
+        (acc.account_name && acc.account_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (acc.account_type && acc.account_type.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
     const openNew = () => {
-        setCurrentEmployee({ id: null, full_name: '', position: '', salary: 0, hire_date: new Date().toISOString().split('T')[0] });
+        setCurrentAccount({ id: null, account_name: '', account_type: '', balance: 0 });
         setIsEdit(false);
         setIsModalOpen(true);
     };
 
-    const editEmployee = (employee) => {
-        setCurrentEmployee({ ...employee });
+    const editAccount = (account) => {
+        setCurrentAccount({ ...account });
         setIsEdit(true);
         setIsModalOpen(true);
     };
 
-    const confirmDelete = (employee) => {
-        setCurrentEmployee(employee);
+    const confirmDelete = (account) => {
+        setCurrentAccount(account);
         setIsDeleteModalOpen(true);
     };
 
-    const saveEmployee = async (e) => {
+    const saveAccount = async (e) => {
         e.preventDefault();
-        if (!currentEmployee.full_name?.trim()) {
-            showToast('warn', 'تحذير', 'اسم الموظف مطلوب');
+        if (!currentAccount.account_name?.trim()) {
+            showToast('warn', 'تحذير', 'اسم الحساب مطلوب');
             return;
         }
 
@@ -75,38 +75,37 @@ const Employees = () => {
             if (!user) return;
 
             const payload = {
-                full_name: currentEmployee.full_name,
-                position: currentEmployee.position,
-                salary: parseFloat(currentEmployee.salary || 0),
-                hire_date: currentEmployee.hire_date ? new Date(currentEmployee.hire_date).toISOString().split('T')[0] : null,
+                account_name: currentAccount.account_name,
+                account_type: currentAccount.account_type,
+                balance: parseFloat(currentAccount.balance || 0),
                 user_id: user.id
             };
 
             if (isEdit) {
-                const { error } = await supabase.from('employees').update(payload).eq('id', currentEmployee.id);
+                const { error } = await supabase.from('chart_of_accounts').update(payload).eq('id', currentAccount.id);
                 if (error) throw error;
-                showToast('success', 'نجاح', 'تم تحديث بيانات الموظف');
+                showToast('success', 'نجاح', 'تم تحديث الحساب');
             } else {
-                const { error } = await supabase.from('employees').insert([payload]);
+                const { error } = await supabase.from('chart_of_accounts').insert([payload]);
                 if (error) throw error;
-                showToast('success', 'نجاح', 'تم إضافة موظف جديد');
+                showToast('success', 'نجاح', 'تم إضافة حساب جديد');
             }
             
             setIsModalOpen(false);
-            fetchEmployees();
+            fetchAccounts();
         } catch (error) {
             console.error('Save error:', error);
             showToast('error', 'خطأ', 'فشل في حفظ البيانات');
         }
     };
 
-    const deleteEmployee = async () => {
+    const deleteAccount = async () => {
         try {
-            const { error } = await supabase.from('employees').delete().eq('id', currentEmployee.id);
+            const { error } = await supabase.from('chart_of_accounts').delete().eq('id', currentAccount.id);
             if (error) throw error;
-            showToast('success', 'نجاح', 'تم حذف الموظف بنجاح');
+            showToast('success', 'نجاح', 'تم حذف الحساب بنجاح');
             setIsDeleteModalOpen(false);
-            fetchEmployees();
+            fetchAccounts();
         } catch (error) {
             console.error('Delete error:', error);
             showToast('error', 'خطأ', 'فشل عملية الحذف');
@@ -117,7 +116,7 @@ const Employees = () => {
         <div className="p-6 space-y-6 w-full text-slate-200" dir="rtl">
             <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
                 <div className="p-6 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <h2 className="text-2xl font-bold text-white">الموظفين</h2>
+                    <h2 className="text-2xl font-bold text-white">دليل الحسابات</h2>
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                         <div className="relative w-full sm:w-64">
                             <input 
@@ -134,7 +133,7 @@ const Employees = () => {
                             className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap"
                         >
                             <Plus className="w-5 h-5" />
-                            إضافة موظف
+                            إضافة حساب
                         </button>
                     </div>
                 </div>
@@ -143,41 +142,39 @@ const Employees = () => {
                     <table className="w-full text-right">
                         <thead className="bg-slate-900/50 text-slate-400">
                             <tr>
-                                <th className="p-4 font-semibold">الرقم</th>
-                                <th className="p-4 font-semibold">الاسم الكامل</th>
-                                <th className="p-4 font-semibold">المنصب</th>
-                                <th className="p-4 font-semibold">الراتب</th>
-                                <th className="p-4 font-semibold">تاريخ التعيين</th>
+                                <th className="p-4 font-semibold">رقم الحساب</th>
+                                <th className="p-4 font-semibold">اسم الحساب</th>
+                                <th className="p-4 font-semibold">النوع</th>
+                                <th className="p-4 font-semibold">الرصيد</th>
                                 <th className="p-4 font-semibold text-center">إجراءات</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="p-8 text-center text-slate-400">
+                                    <td colSpan="5" className="p-8 text-center text-slate-400">
                                         جاري التحميل...
                                     </td>
                                 </tr>
-                            ) : filteredEmployees.length === 0 ? (
+                            ) : filteredAccounts.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="p-8 text-center text-slate-400">
+                                    <td colSpan="5" className="p-8 text-center text-slate-400">
                                         لا توجد بيانات متاحة.
                                     </td>
                                 </tr>
                             ) : (
-                                filteredEmployees.map(employee => (
-                                    <tr key={employee.id} className="hover:bg-slate-700/20 transition-colors">
-                                        <td className="p-4">{employee.id}</td>
-                                        <td className="p-4 font-medium text-white">{employee.full_name}</td>
-                                        <td className="p-4">{employee.position}</td>
-                                        <td className="p-4">${Number(employee.salary).toLocaleString()}</td>
-                                        <td className="p-4">{employee.hire_date}</td>
+                                filteredAccounts.map(account => (
+                                    <tr key={account.id} className="hover:bg-slate-700/20 transition-colors">
+                                        <td className="p-4">{account.id}</td>
+                                        <td className="p-4 font-medium text-white">{account.account_name}</td>
+                                        <td className="p-4">{account.account_type}</td>
+                                        <td className="p-4">${Number(account.balance).toLocaleString()}</td>
                                         <td className="p-4">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => editEmployee(employee)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-full transition-colors">
+                                                <button onClick={() => editAccount(account)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-full transition-colors">
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => confirmDelete(employee)} className="p-2 text-rose-400 hover:bg-rose-400/10 rounded-full transition-colors">
+                                                <button onClick={() => confirmDelete(account)} className="p-2 text-rose-400 hover:bg-rose-400/10 rounded-full transition-colors">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
@@ -195,48 +192,39 @@ const Employees = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center p-6 border-b border-slate-700">
-                            <h3 className="text-xl font-bold text-white">{isEdit ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}</h3>
+                            <h3 className="text-xl font-bold text-white">{isEdit ? 'تعديل الحساب' : 'إضافة حساب جديد'}</h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
                                 <X className="w-6 h-6" />
                             </button>
                         </div>
-                        <form onSubmit={saveEmployee} className="p-6 space-y-4">
+                        <form onSubmit={saveAccount} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">الاسم الكامل</label>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">اسم الحساب</label>
                                 <input 
                                     type="text" 
                                     required
                                     className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                    value={currentEmployee.full_name}
-                                    onChange={e => setCurrentEmployee({...currentEmployee, full_name: e.target.value})}
+                                    value={currentAccount.account_name}
+                                    onChange={e => setCurrentAccount({...currentAccount, account_name: e.target.value})}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">المنصب</label>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">النوع (أصول، خصوم، إيرادات، الخ)</label>
                                 <input 
                                     type="text" 
                                     className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                    value={currentEmployee.position}
-                                    onChange={e => setCurrentEmployee({...currentEmployee, position: e.target.value})}
+                                    value={currentAccount.account_type}
+                                    onChange={e => setCurrentAccount({...currentAccount, account_type: e.target.value})}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">الراتب</label>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">الرصيد</label>
                                 <input 
                                     type="number" 
                                     step="0.01"
                                     className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                    value={currentEmployee.salary}
-                                    onChange={e => setCurrentEmployee({...currentEmployee, salary: e.target.value})}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">تاريخ التعيين</label>
-                                <input 
-                                    type="date" 
-                                    className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                    value={currentEmployee.hire_date || ''}
-                                    onChange={e => setCurrentEmployee({...currentEmployee, hire_date: e.target.value})}
+                                    value={currentAccount.balance}
+                                    onChange={e => setCurrentAccount({...currentAccount, balance: e.target.value})}
                                 />
                             </div>
                             <div className="flex justify-end gap-3 pt-4 border-t border-slate-700 mt-6">
@@ -257,11 +245,11 @@ const Employees = () => {
                                 <Trash2 className="w-8 h-8" />
                             </div>
                             <h3 className="text-xl font-bold text-white">تأكيد الحذف</h3>
-                            <p className="text-slate-300">هل أنت متأكد من حذف الموظف <b>{currentEmployee.full_name}</b>؟ لا يمكن التراجع عن هذا الإجراء.</p>
+                            <p className="text-slate-300">هل أنت متأكد من حذف الحساب <b>{currentAccount.account_name}</b>؟ لا يمكن التراجع عن هذا الإجراء.</p>
                         </div>
                         <div className="flex justify-end gap-3 p-6 bg-slate-900/50 border-t border-slate-700">
                             <button onClick={() => setIsDeleteModalOpen(false)} className="px-5 py-2.5 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors">إلغاء</button>
-                            <button onClick={deleteEmployee} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors shadow-lg shadow-rose-900/20 font-medium">حذف</button>
+                            <button onClick={deleteAccount} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors shadow-lg shadow-rose-900/20 font-medium">حذف</button>
                         </div>
                     </div>
                 </div>
@@ -270,4 +258,4 @@ const Employees = () => {
     );
 };
 
-export default Employees;
+export default ChartOfAccounts;

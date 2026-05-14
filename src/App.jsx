@@ -9,6 +9,7 @@ import Customers from './pages/Customers';
 import Employees from './pages/Employees';
 import Suppliers from './pages/Suppliers';
 import Accounts from './pages/Accounts';
+import ChartOfAccounts from './pages/ChartOfAccounts';
 import Payroll from './pages/Payroll';
 import PurchaseInvoices from './pages/PurchaseInvoices';
 import Checks from './pages/Checks';
@@ -155,6 +156,7 @@ function App() {
               <Route path="/purchases" element={<PurchaseInvoices />} />
               <Route path="/suppliers" element={<Suppliers />} />
               <Route path="/accounts" element={<Accounts />} />
+              <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
               <Route path="/payroll" element={<Payroll />} />
               <Route path="/journal" element={<JournalEntries />} />
               <Route path="/checks" element={<Checks />} />

@@ -15,18 +15,25 @@ const Invoices = () => {
     const [loading, setLoading] = useState(true);
     const [globalFilter, setGlobalFilter] = useState('');
     const [dialogVisible, setDialogVisible] = useState(false);
-    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-    const [currentItem, setCurrentItem] = useState({ customer_id: null, date: '', total_amount: 0, status: 'Pending' });
+    const [currentItem, setCurrentItem] = useState({ customer_id: null, date: '', total_amount: 0, status: 'Pending', tax_rate: 0, due_date: '', amount_paid: 0 });
     const [isEdit, setIsEdit] = useState(false);
 
     const { showToast } = useToast();
 
     const fetchData = async () => {
         setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
+            setLoading(false);
+            return;
+        }
+
         // Fetch Invoices and Join Customers for display
         const { data, error } = await supabase
             .from('invoices')
             .select('*, customers(name)')
+            .eq('user_id', user.id)
             .order('id', { ascending: false });
 
         if (error) {
@@ -49,7 +56,7 @@ const Invoices = () => {
     useEffect(() => { fetchData(); }, []);
 
     const openNew = () => {
-        setCurrentItem({ customer_id: null, date: new Date().toISOString().split('T')[0], total_amount: 0, status: 'Pending' });
+        setCurrentItem({ customer_id: null, date: new Date().toISOString().split('T')[0], total_amount: 0, status: 'Pending', tax_rate: 0, due_date: '', amount_paid: 0 });
         setIsEdit(false);
         setDialogVisible(true);
     };
@@ -72,11 +79,18 @@ const Invoices = () => {
         }
 
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
             const payload = {
                 customer_id: typeof currentItem.customer_id === 'object' ? currentItem.customer_id?.id : currentItem.customer_id,
                 invoice_date: currentItem.date ? new Date(currentItem.date).toISOString().split('T')[0] : null,
                 total_amount: parseFloat(String(currentItem.total_amount || currentItem.amount || 0).replace(/[^0-9.-]+/g,"")),
-                status: typeof currentItem.status === 'object' ? currentItem.status?.value : currentItem.status || 'Pending'
+                status: typeof currentItem.status === 'object' ? currentItem.status?.value : currentItem.status || 'Pending',
+                tax_rate: parseFloat(String(currentItem.tax_rate || 0).replace(/[^0-9.-]+/g,"")),
+                due_date: currentItem.due_date ? new Date(currentItem.due_date).toISOString().split('T')[0] : null,
+                amount_paid: parseFloat(String(currentItem.amount_paid || 0).replace(/[^0-9.-]+/g,"")),
+                user_id: user.id
             };
             
             console.log("SENDING INVOICE PAYLOAD:", payload);
@@ -144,10 +158,12 @@ const Invoices = () => {
             <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg w-full">
                 <DataTable value={items || []} paginator rows={10} dataKey="id" filterDisplay="row" loading={loading} globalFilter={globalFilter} header={header} emptyMessage="لا يوجد فواتير." className="p-datatable-sm custom-dark-table" stripedRows>
                     <Column field="id" header="رقم الفاتورة" sortable style={{ width: '10%' }}></Column>
-                    <Column field="customers.name" header="العميل" sortable style={{ width: '30%' }} body={(r) => r.customers?.name || 'غير معروف'}></Column>
-                    <Column field="date" header="التاريخ" sortable style={{ width: '20%' }}></Column>
-                    <Column field="total_amount" header="المبلغ" sortable style={{ width: '15%' }} body={(r) => `$${r.total_amount}`}></Column>
-                    <Column field="status" header="الحالة" sortable style={{ width: '15%' }}></Column>
+                    <Column field="customers.name" header="العميل" sortable style={{ width: '20%' }} body={(r) => r.customers?.name || 'غير معروف'}></Column>
+                    <Column field="date" header="تاريخ الفاتورة" sortable style={{ width: '15%' }}></Column>
+                    <Column field="due_date" header="تاريخ الاستحقاق" sortable style={{ width: '15%' }}></Column>
+                    <Column field="total_amount" header="المبلغ الإجمالي" sortable style={{ width: '10%' }} body={(r) => `$${r.total_amount}`}></Column>
+                    <Column field="amount_paid" header="المبلغ المدفوع" sortable style={{ width: '10%' }} body={(r) => `$${r.amount_paid || 0}`}></Column>
+                    <Column field="status" header="الحالة" sortable style={{ width: '10%' }}></Column>
                     <Column body={actionBodyTemplate} exportable={false} style={{ width: '10%' }}></Column>
                 </DataTable>
             </div>
@@ -158,12 +174,24 @@ const Invoices = () => {
                     <Dropdown id="customer_id" value={currentItem.customer_id} options={customers} optionLabel="name" optionValue="id" onChange={(e) => setCurrentItem({...currentItem, customer_id: e.value})} placeholder="اختر العميل" filter required />
                 </div>
                 <div className="field mt-4">
-                    <label htmlFor="date" className="font-bold">التاريخ</label>
+                    <label htmlFor="date" className="font-bold">تاريخ الفاتورة</label>
                     <InputText id="date" type="date" value={currentItem.date} onChange={(e) => setCurrentItem({...currentItem, date: e.target.value})} />
                 </div>
                 <div className="field mt-4">
-                    <label htmlFor="total_amount" className="font-bold">المبلغ</label>
+                    <label htmlFor="due_date" className="font-bold">تاريخ الاستحقاق</label>
+                    <InputText id="due_date" type="date" value={currentItem.due_date} onChange={(e) => setCurrentItem({...currentItem, due_date: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="total_amount" className="font-bold">المبلغ الإجمالي</label>
                     <InputNumber id="total_amount" value={currentItem.total_amount} onValueChange={(e) => setCurrentItem({...currentItem, total_amount: e.value})} mode="currency" currency="USD" locale="en-US" />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="tax_rate" className="font-bold">نسبة الضريبة (%)</label>
+                    <InputNumber id="tax_rate" value={currentItem.tax_rate} onValueChange={(e) => setCurrentItem({...currentItem, tax_rate: e.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="amount_paid" className="font-bold">المبلغ المدفوع</label>
+                    <InputNumber id="amount_paid" value={currentItem.amount_paid} onValueChange={(e) => setCurrentItem({...currentItem, amount_paid: e.value})} mode="currency" currency="USD" locale="en-US" />
                 </div>
                 <div className="field mt-4">
                     <label htmlFor="status" className="font-bold">الحالة</label>

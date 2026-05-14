@@ -14,14 +14,26 @@ const Inventory = () => {
     const [globalFilter, setGlobalFilter] = useState('');
     const [dialogVisible, setDialogVisible] = useState(false);
     const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-    const [currentItem, setCurrentItem] = useState({ name: '', category: '', price: 0, stock: 0 });
+    const [currentItem, setCurrentItem] = useState({ name: '', category: '', price: 0, stock: 0, sku: '', unit: '', reorder_level: 0 });
     const [isEdit, setIsEdit] = useState(false);
 
     const { showToast } = useToast();
 
     const fetchItems = async () => {
         setLoading(true);
-        const { data, error } = await supabase.from('inventory').select('*').order('id', { ascending: true });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
+            setLoading(false);
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('inventory')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('id', { ascending: true });
+
         if (error) {
             console.error('Error fetching inventory:', error);
             showToast('error', 'خطأ', 'فشل جلب بيانات المخزون');
@@ -34,7 +46,7 @@ const Inventory = () => {
     useEffect(() => { fetchItems(); }, []);
 
     const openNew = () => {
-        setCurrentItem({ name: '', category: '', price: 0, stock: 0 });
+        setCurrentItem({ name: '', category: '', price: 0, stock: 0, sku: '', unit: '', reorder_level: 0 });
         setIsEdit(false);
         setDialogVisible(true);
     };
@@ -57,11 +69,18 @@ const Inventory = () => {
         }
 
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
             const payload = {
                 name: currentItem.name,
                 category: typeof currentItem.category === 'object' ? currentItem.category?.id : currentItem.category || '',
                 price: parseFloat(String(currentItem.price || 0).replace(/[^0-9.-]+/g, "")),
-                stock: parseInt(String(currentItem.stock || 0).replace(/[^0-9.-]+/g, ""), 10)
+                stock: parseInt(String(currentItem.stock || 0).replace(/[^0-9.-]+/g, ""), 10),
+                sku: currentItem.sku || '',
+                unit: currentItem.unit || '',
+                reorder_level: parseInt(String(currentItem.reorder_level || 0).replace(/[^0-9.-]+/g, ""), 10),
+                user_id: user.id
             };
 
             if (isEdit) {
@@ -119,10 +138,12 @@ const Inventory = () => {
             <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg w-full">
                 <DataTable value={items || []} paginator rows={10} dataKey="id" filterDisplay="row" loading={loading} globalFilter={globalFilter} header={header} emptyMessage="لا يوجد بيانات." className="p-datatable-sm custom-dark-table" stripedRows>
                     <Column field="id" header="الرقم" sortable style={{ width: '10%' }}></Column>
-                    <Column field="name" header="اسم المنتج" sortable style={{ width: '30%' }}></Column>
-                    <Column field="category" header="الفئة" sortable style={{ width: '20%' }}></Column>
-                    <Column field="price" header="السعر" sortable style={{ width: '15%' }} body={(r) => `$${r.price}`}></Column>
-                    <Column field="stock" header="الكمية" sortable style={{ width: '15%' }}></Column>
+                    <Column field="sku" header="SKU" sortable style={{ width: '10%' }}></Column>
+                    <Column field="name" header="اسم المنتج" sortable style={{ width: '25%' }}></Column>
+                    <Column field="category" header="الفئة" sortable style={{ width: '15%' }}></Column>
+                    <Column field="price" header="السعر" sortable style={{ width: '10%' }} body={(r) => `$${r.price}`}></Column>
+                    <Column field="stock" header="الكمية" sortable style={{ width: '10%' }}></Column>
+                    <Column field="unit" header="الوحدة" sortable style={{ width: '10%' }}></Column>
                     <Column body={actionBodyTemplate} exportable={false} style={{ width: '10%' }}></Column>
                 </DataTable>
             </div>
@@ -131,6 +152,10 @@ const Inventory = () => {
                 <div className="field mt-4">
                     <label htmlFor="name" className="font-bold">اسم المنتج</label>
                     <InputText id="name" value={currentItem.name} onChange={(e) => setCurrentItem({...currentItem, name: e.target.value})} required autoFocus />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="sku" className="font-bold">رمز المنتج (SKU)</label>
+                    <InputText id="sku" value={currentItem.sku} onChange={(e) => setCurrentItem({...currentItem, sku: e.target.value})} />
                 </div>
                 <div className="field mt-4">
                     <label htmlFor="category" className="font-bold">الفئة</label>
@@ -143,6 +168,14 @@ const Inventory = () => {
                 <div className="field mt-4">
                     <label htmlFor="stock" className="font-bold">الكمية</label>
                     <InputNumber id="stock" value={currentItem.stock} onValueChange={(e) => setCurrentItem({...currentItem, stock: e.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="unit" className="font-bold">الوحدة</label>
+                    <InputText id="unit" value={currentItem.unit} onChange={(e) => setCurrentItem({...currentItem, unit: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="reorder_level" className="font-bold">مستوى إعادة الطلب</label>
+                    <InputNumber id="reorder_level" value={currentItem.reorder_level} onValueChange={(e) => setCurrentItem({...currentItem, reorder_level: e.value})} />
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
                     <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDialogVisible(false)} />

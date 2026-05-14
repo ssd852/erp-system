@@ -15,18 +15,25 @@ const Payroll = () => {
     const [loading, setLoading] = useState(true);
     const [globalFilter, setGlobalFilter] = useState('');
     const [dialogVisible, setDialogVisible] = useState(false);
-    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-    const [currentItem, setCurrentItem] = useState({ employee_id: null, month: '', basic_salary: 0, deductions: 0, net_salary: 0 });
+    const [currentItem, setCurrentItem] = useState({ employee_id: null, month: '', basic_salary: 0, deductions: 0, allowances: 0, net_salary: 0 });
     const [isEdit, setIsEdit] = useState(false);
 
     const { showToast } = useToast();
 
     const fetchData = async () => {
         setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
+            setLoading(false);
+            return;
+        }
+
         // Fetch Payroll and Join Employees using full_name
         const { data, error } = await supabase
             .from('payroll')
             .select('*, employees(full_name)')
+            .eq('user_id', user.id)
             .order('id', { ascending: false });
 
         if (error) {
@@ -45,16 +52,16 @@ const Payroll = () => {
 
     useEffect(() => { fetchData(); }, []);
 
-    // Calculate net salary automatically when basic or deductions change
+    // Calculate net salary automatically when basic, allowances, or deductions change
     useEffect(() => {
         setCurrentItem(prev => ({
             ...prev,
-            net_salary: (prev.basic_salary || 0) - (prev.deductions || 0)
+            net_salary: (prev.basic_salary || 0) + (prev.allowances || 0) - (prev.deductions || 0)
         }));
-    }, [currentItem.basic_salary, currentItem.deductions]);
+    }, [currentItem.basic_salary, currentItem.allowances, currentItem.deductions]);
 
     const openNew = () => {
-        setCurrentItem({ employee_id: null, month: '', basic_salary: 0, deductions: 0, net_salary: 0 });
+        setCurrentItem({ employee_id: null, month: '', basic_salary: 0, deductions: 0, allowances: 0, net_salary: 0 });
         setIsEdit(false);
         setDialogVisible(true);
     };
@@ -77,12 +84,17 @@ const Payroll = () => {
         }
 
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
             const payload = {
                 employee_id: typeof currentItem.employee_id === 'object' ? currentItem.employee_id?.id : currentItem.employee_id,
                 month: currentItem.month || '',
                 basic_salary: parseFloat(String(currentItem.basic_salary || 0).replace(/[^0-9.-]+/g, "")),
                 deductions: parseFloat(String(currentItem.deductions || 0).replace(/[^0-9.-]+/g, "")),
-                net_salary: parseFloat(String(currentItem.net_salary || 0).replace(/[^0-9.-]+/g, ""))
+                allowances: parseFloat(String(currentItem.allowances || 0).replace(/[^0-9.-]+/g, "")),
+                net_salary: parseFloat(String(currentItem.net_salary || 0).replace(/[^0-9.-]+/g, "")),
+                user_id: user.id
             };
 
             if (isEdit) {
@@ -142,9 +154,10 @@ const Payroll = () => {
                     <Column field="id" header="الرقم" sortable style={{ width: '10%' }}></Column>
                     <Column field="employees.full_name" header="الموظف" sortable style={{ width: '25%' }} body={(r) => r.employees?.full_name || 'غير معروف'}></Column>
                     <Column field="month" header="الشهر" sortable style={{ width: '15%' }}></Column>
-                    <Column field="basic_salary" header="أساسي" sortable style={{ width: '15%' }} body={(r) => `$${r.basic_salary}`}></Column>
+                    <Column field="basic_salary" header="أساسي" sortable style={{ width: '10%' }} body={(r) => `$${r.basic_salary}`}></Column>
+                    <Column field="allowances" header="بدلات" sortable style={{ width: '10%' }} body={(r) => `$${r.allowances || 0}`}></Column>
                     <Column field="deductions" header="خصومات" sortable style={{ width: '10%' }} body={(r) => `$${r.deductions}`}></Column>
-                    <Column field="net_salary" header="الصافي" sortable style={{ width: '15%' }} body={(r) => `$${r.net_salary}`}></Column>
+                    <Column field="net_salary" header="الصافي" sortable style={{ width: '10%' }} body={(r) => `$${r.net_salary}`}></Column>
                     <Column body={actionBodyTemplate} exportable={false} style={{ width: '10%' }}></Column>
                 </DataTable>
             </div>
@@ -161,6 +174,10 @@ const Payroll = () => {
                 <div className="field mt-4">
                     <label htmlFor="basic_salary" className="font-bold">الراتب الأساسي</label>
                     <InputNumber id="basic_salary" value={currentItem.basic_salary} onValueChange={(e) => setCurrentItem({...currentItem, basic_salary: e.value})} mode="currency" currency="USD" locale="en-US" />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="allowances" className="font-bold">البدلات (المكافآت)</label>
+                    <InputNumber id="allowances" value={currentItem.allowances} onValueChange={(e) => setCurrentItem({...currentItem, allowances: e.value})} mode="currency" currency="USD" locale="en-US" />
                 </div>
                 <div className="field mt-4">
                     <label htmlFor="deductions" className="font-bold">الخصومات</label>
