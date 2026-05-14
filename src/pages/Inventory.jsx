@@ -1,198 +1,250 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
-import { Button } from 'primereact/button';
-import { Dialog } from 'primereact/dialog';
-import { InputText } from 'primereact/inputtext';
-import { InputNumber } from 'primereact/inputnumber';
-import { useToast } from '../context/ToastContext';
+import { Plus, Edit, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
 
 const Inventory = () => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [globalFilter, setGlobalFilter] = useState('');
-    const [dialogVisible, setDialogVisible] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showModal, setShowModal] = useState(false);
     const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-    const [currentItem, setCurrentItem] = useState({ name: '', category: '', price: 0, stock: 0, sku: '', unit: '', reorder_level: 0 });
-    const [isEdit, setIsEdit] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
 
-    const { showToast } = useToast();
+    const [formData, setFormData] = useState({
+        name: '', category: '', price: 0, stock: 0, sku: '', unit: '', reorder_level: 0
+    });
 
-    const fetchItems = async () => {
+    const fetchData = async () => {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
-            setLoading(false);
-            return;
-        }
-
-        const { data, error } = await supabase
-            .from('inventory')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('id', { ascending: true });
-
-        if (error) {
-            console.error('Error fetching inventory:', error);
-            showToast('error', 'خطأ', 'فشل جلب بيانات المخزون');
-        } else {
-            setItems(data || []);
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+            const { data, error } = await supabase
+                .from('inventory')
+                .select('*')
+                .eq('user_id', userData.user.id)
+                .order('id', { ascending: false });
+            if (!error) setItems(data || []);
         }
         setLoading(false);
     };
 
-    useEffect(() => { fetchItems(); }, []);
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-    const openNew = () => {
-        setCurrentItem({ name: '', category: '', price: 0, stock: 0, sku: '', unit: '', reorder_level: 0 });
-        setIsEdit(false);
-        setDialogVisible(true);
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const editItem = (item) => {
-        setCurrentItem({ ...item });
-        setIsEdit(true);
-        setDialogVisible(true);
+    const openAddModal = () => {
+        setFormData({ name: '', category: '', price: 0, stock: 0, sku: '', unit: '', reorder_level: 0 });
+        setIsEditing(false);
+        setShowModal(true);
+    };
+
+    const openEditModal = (item) => {
+        setFormData({
+            name: item.name, category: item.category || '', price: item.price || 0,
+            stock: item.stock || 0, sku: item.sku || '', unit: item.unit || '', reorder_level: item.reorder_level || 0
+        });
+        setIsEditing(true);
+        setFormData(prev => ({...prev, id: item.id}));
+        setShowModal(true);
     };
 
     const confirmDelete = (item) => {
-        setCurrentItem(item);
+        setItemToDelete(item);
         setDeleteDialogVisible(true);
     };
 
-    const saveItem = async () => {
-        if (!currentItem.name?.trim()) {
-            showToast('warn', 'تحذير', 'اسم المنتج مطلوب');
-            return;
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!formData.name?.trim()) return;
+
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) return;
+
+        const payload = {
+            name: formData.name,
+            category: formData.category,
+            price: parseFloat(String(formData.price || 0).replace(/[^0-9.-]+/g, "")),
+            stock: parseInt(String(formData.stock || 0).replace(/[^0-9.-]+/g, ""), 10),
+            sku: formData.sku,
+            unit: formData.unit,
+            reorder_level: parseInt(String(formData.reorder_level || 0).replace(/[^0-9.-]+/g, ""), 10),
+            user_id: userData.user.id
+        };
+
+        if (isEditing) {
+            await supabase.from('inventory').update(payload).eq('id', formData.id);
+        } else {
+            await supabase.from('inventory').insert([payload]);
         }
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const payload = {
-                name: currentItem.name,
-                category: typeof currentItem.category === 'object' ? currentItem.category?.id : currentItem.category || '',
-                price: parseFloat(String(currentItem.price || 0).replace(/[^0-9.-]+/g, "")),
-                stock: parseInt(String(currentItem.stock || 0).replace(/[^0-9.-]+/g, ""), 10),
-                sku: currentItem.sku || '',
-                unit: currentItem.unit || '',
-                reorder_level: parseInt(String(currentItem.reorder_level || 0).replace(/[^0-9.-]+/g, ""), 10),
-                user_id: user.id
-            };
-
-            if (isEdit) {
-                const { error } = await supabase.from('inventory').update(payload).eq('id', currentItem.id);
-                if (error) throw error;
-                showToast('success', 'نجاح', 'تم تحديث المنتج');
-            } else {
-                const { error } = await supabase.from('inventory').insert([payload]);
-                if (error) throw error;
-                showToast('success', 'نجاح', 'تم إضافة منتج جديد');
-            }
-            setDialogVisible(false);
-            fetchItems();
-        } catch (error) {
-            console.error('Save error:', error);
-            showToast('error', 'خطأ', 'فشل في حفظ البيانات');
-        }
+        setShowModal(false);
+        fetchData();
     };
 
-    const deleteItem = async () => {
-        try {
-            const { error } = await supabase.from('inventory').delete().eq('id', currentItem.id);
-            if (error) throw error;
-            showToast('success', 'نجاح', 'تم حذف المنتج بنجاح');
-            setDeleteDialogVisible(false);
-            fetchItems();
-        } catch (error) {
-            console.error('Delete error:', error);
-            showToast('error', 'خطأ', 'فشل عملية الحذف');
-        }
+    const handleDelete = async () => {
+        if (!itemToDelete) return;
+        await supabase.from('inventory').delete().eq('id', itemToDelete.id);
+        setDeleteDialogVisible(false);
+        setItemToDelete(null);
+        fetchData();
     };
 
-    const actionBodyTemplate = (rowData) => (
-        <div className="flex gap-2">
-            <Button icon="pi pi-pencil" rounded text severity="info" onClick={() => editItem(rowData)} />
-            <Button icon="pi pi-trash" rounded text severity="danger" onClick={() => confirmDelete(rowData)} />
-        </div>
-    );
-
-    const header = (
-        <div className="flex flex-wrap gap-2 items-center justify-between w-full">
-            <h4 className="m-0 text-xl font-bold text-white">إدارة المخزون</h4>
-            <div className="flex items-center gap-4">
-                <span className="p-input-icon-right">
-                    <i className="pi pi-search" />
-                    <InputText type="search" onInput={(e) => setGlobalFilter(e.target.value)} placeholder="ابحث..." className="w-64 bg-slate-800 text-white border-slate-700" />
-                </span>
-                <Button label="إضافة منتج" icon="pi pi-plus" severity="success" onClick={openNew} />
-            </div>
-        </div>
+    const filteredItems = items.filter(i =>
+        i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (i.sku && i.sku.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
-        <div className="w-full flex flex-col gap-6 p-2 page-fade-in" dir="rtl">
-            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg w-full">
-                <DataTable value={items || []} paginator rows={10} dataKey="id" filterDisplay="row" loading={loading} globalFilter={globalFilter} header={header} emptyMessage="لا يوجد بيانات." className="p-datatable-sm custom-dark-table" stripedRows>
-                    <Column field="id" header="الرقم" sortable style={{ width: '10%' }}></Column>
-                    <Column field="sku" header="SKU" sortable style={{ width: '10%' }}></Column>
-                    <Column field="name" header="اسم المنتج" sortable style={{ width: '25%' }}></Column>
-                    <Column field="category" header="الفئة" sortable style={{ width: '15%' }}></Column>
-                    <Column field="price" header="السعر" sortable style={{ width: '10%' }} body={(r) => `$${r.price}`}></Column>
-                    <Column field="stock" header="الكمية" sortable style={{ width: '10%' }}></Column>
-                    <Column field="unit" header="الوحدة" sortable style={{ width: '10%' }}></Column>
-                    <Column body={actionBodyTemplate} exportable={false} style={{ width: '10%' }}></Column>
-                </DataTable>
+        <div className="w-full text-slate-200 p-6 page-fade-in" dir="rtl">
+            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
+                
+                {/* Header Layout */}
+                <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-[#0B1120]/50">
+                    <div className="flex items-center gap-4">
+                        <div className="relative w-64">
+                            <input
+                                type="text"
+                                placeholder="بحث..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-[#0F172A] border border-slate-700 rounded-lg py-2.5 px-4 pl-10 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                            />
+                            <Search className="absolute left-3 top-3 text-slate-500" size={18} />
+                        </div>
+
+                        <button
+                            onClick={openAddModal}
+                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold shadow-lg shadow-green-500/20"
+                        >
+                            <Plus size={20} /> إضافة منتج
+                        </button>
+                    </div>
+                    <h2 className="text-xl font-bold text-white tracking-wide">إدارة المخزون</h2>
+                </div>
+
+                <div className="w-full overflow-x-auto">
+                    <table className="w-full text-right text-sm">
+                        <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
+                            <tr>
+                                <th className="p-4 font-semibold whitespace-nowrap">الرقم</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">SKU</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">الاسم</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">الفئة</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">السعر</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">الكمية</th>
+                                <th className="p-4 font-semibold text-center whitespace-nowrap">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/50">
+                            {loading ? (
+                                <tr><td colSpan="7" className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
+                            ) : filteredItems.length === 0 ? (
+                                <tr><td colSpan="7" className="p-8 text-center text-slate-500">لا يوجد بيانات.</td></tr>
+                            ) : (
+                                filteredItems.map((item, index) => (
+                                    <tr key={item.id} className="hover:bg-[#1E293B]/50 transition-colors">
+                                        <td className="p-4 text-slate-400 font-mono">{index + 1}</td>
+                                        <td className="p-4 text-slate-300">{item.sku || '-'}</td>
+                                        <td className="p-4 font-bold text-white">{item.name}</td>
+                                        <td className="p-4 text-slate-300">{item.category || '-'}</td>
+                                        <td className="p-4 text-emerald-400 font-mono font-bold">${Number(item.price || 0).toLocaleString()}</td>
+                                        <td className="p-4 text-slate-300">{item.stock || 0} {item.unit}</td>
+                                        <td className="p-4 flex justify-center gap-3">
+                                            <button onClick={() => openEditModal(item)} className="text-blue-400 hover:text-blue-300 transition-colors"><Edit size={18} /></button>
+                                            <button onClick={() => confirmDelete(item)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={18} /></button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <Dialog visible={dialogVisible} style={{ width: '450px' }} header={isEdit ? "تعديل المنتج" : "إضافة منتج جديد"} modal className="p-fluid" onHide={() => setDialogVisible(false)} dir="rtl">
-                <div className="field mt-4">
-                    <label htmlFor="name" className="font-bold">اسم المنتج</label>
-                    <InputText id="name" value={currentItem.name} onChange={(e) => setCurrentItem({...currentItem, name: e.target.value})} required autoFocus />
+            {/* Main Form Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-[#0B1120]">
+                            <h2 className="text-xl font-bold text-white">{isEditing ? 'تعديل' : 'إضافة'}</h2>
+                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-2">اسم المنتج <span className="text-red-500">*</span></label>
+                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">رمز المنتج (SKU)</label>
+                                    <input type="text" name="sku" value={formData.sku} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">الفئة</label>
+                                    <input type="text" name="category" value={formData.category} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">السعر</label>
+                                    <input type="text" name="price" value={formData.price} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">الكمية</label>
+                                    <input type="text" name="stock" value={formData.stock} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">الوحدة</label>
+                                    <input type="text" name="unit" value={formData.unit} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">حد إعادة الطلب</label>
+                                    <input type="text" name="reorder_level" value={formData.reorder_level} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                            </div>
+                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
+                                    حفظ
+                                </button>
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-                <div className="field mt-4">
-                    <label htmlFor="sku" className="font-bold">رمز المنتج (SKU)</label>
-                    <InputText id="sku" value={currentItem.sku} onChange={(e) => setCurrentItem({...currentItem, sku: e.target.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="category" className="font-bold">الفئة</label>
-                    <InputText id="category" value={currentItem.category} onChange={(e) => setCurrentItem({...currentItem, category: e.target.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="price" className="font-bold">السعر</label>
-                    <InputNumber id="price" value={currentItem.price} onValueChange={(e) => setCurrentItem({...currentItem, price: e.value})} mode="currency" currency="USD" locale="en-US" />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="stock" className="font-bold">الكمية</label>
-                    <InputNumber id="stock" value={currentItem.stock} onValueChange={(e) => setCurrentItem({...currentItem, stock: e.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="unit" className="font-bold">الوحدة</label>
-                    <InputText id="unit" value={currentItem.unit} onChange={(e) => setCurrentItem({...currentItem, unit: e.target.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="reorder_level" className="font-bold">مستوى إعادة الطلب</label>
-                    <InputNumber id="reorder_level" value={currentItem.reorder_level} onValueChange={(e) => setCurrentItem({...currentItem, reorder_level: e.value})} />
-                </div>
-                <div className="flex justify-end gap-2 mt-6">
-                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDialogVisible(false)} />
-                    <Button label="حفظ" icon="pi pi-check" onClick={saveItem} />
-                </div>
-            </Dialog>
+            )}
 
-            <Dialog visible={deleteDialogVisible} style={{ width: '450px' }} header="تأكيد الحذف" modal onHide={() => setDeleteDialogVisible(false)} dir="rtl">
-                <div className="flex items-center justify-center gap-4 py-4">
-                    <i className="pi pi-exclamation-triangle text-red-500" style={{ fontSize: '2rem' }} />
-                    <span>هل أنت متأكد من حذف المنتج <b>{currentItem.name}</b>؟</span>
+            {/* Delete Confirmation Modal */}
+            {deleteDialogVisible && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 text-center">
+                            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                                <Trash2 size={32} className="text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">تأكيد الحذف</h3>
+                            <p className="text-slate-400 mb-6">هل أنت متأكد من حذف هذه البيانات؟ لا يمكن التراجع عن هذه العملية.</p>
+                            <div className="flex gap-3">
+                                <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                                    نعم، احذف
+                                </button>
+                                <button onClick={() => setDeleteDialogVisible(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDeleteDialogVisible(false)} />
-                    <Button label="حذف" icon="pi pi-trash" severity="danger" onClick={deleteItem} />
-                </div>
-            </Dialog>
+            )}
         </div>
     );
 };

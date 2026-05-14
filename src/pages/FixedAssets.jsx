@@ -1,199 +1,256 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
-import { Button } from 'primereact/button';
-import { Dialog } from 'primereact/dialog';
-import { InputText } from 'primereact/inputtext';
-import { InputNumber } from 'primereact/inputnumber';
-import { useToast } from '../context/ToastContext';
+import { Plus, Edit, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
 
 const FixedAssets = () => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [globalFilter, setGlobalFilter] = useState('');
-    const [dialogVisible, setDialogVisible] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showModal, setShowModal] = useState(false);
     const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-    const [currentItem, setCurrentItem] = useState({ asset_name: '', purchase_date: '', value: 0, depreciation: 0, salvage_value: 0, useful_life_years: 0, depreciation_method: 'Straight Line' });
-    const [isEdit, setIsEdit] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
 
-    const { showToast } = useToast();
+    const [formData, setFormData] = useState({
+        asset_name: '', purchase_date: '', value: 0, depreciation_rate: 0, salvage_value: 0, useful_life_years: 0, depreciation_method: 'Straight Line'
+    });
 
-    const fetchItems = async () => {
+    const fetchData = async () => {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
-            setLoading(false);
-            return;
-        }
-
-        const { data, error } = await supabase
-            .from('fixed_assets')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('id', { ascending: true });
-        if (error) {
-            console.error('Error fetching assets:', error);
-            if (error.code !== 'PGRST116') {
-                // Ignore missing table error initially
-            }
-        } else {
-            setItems(data || []);
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+            const { data, error } = await supabase
+                .from('fixed_assets')
+                .select('*')
+                .eq('user_id', userData.user.id)
+                .order('id', { ascending: false });
+            if (!error) setItems(data || []);
         }
         setLoading(false);
     };
 
-    useEffect(() => { fetchItems(); }, []);
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-    const openNew = () => {
-        setCurrentItem({ asset_name: '', purchase_date: new Date().toISOString().split('T')[0], value: 0, depreciation: 0, salvage_value: 0, useful_life_years: 0, depreciation_method: 'Straight Line' });
-        setIsEdit(false);
-        setDialogVisible(true);
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const editItem = (item) => {
-        setCurrentItem({ ...item });
-        setIsEdit(true);
-        setDialogVisible(true);
+    const openAddModal = () => {
+        setFormData({ asset_name: '', purchase_date: new Date().toISOString().split('T')[0], value: 0, depreciation_rate: 0, salvage_value: 0, useful_life_years: 0, depreciation_method: 'Straight Line' });
+        setIsEditing(false);
+        setShowModal(true);
+    };
+
+    const openEditModal = (item) => {
+        setFormData({
+            asset_name: item.asset_name,
+            purchase_date: item.purchase_date || '',
+            value: item.value || 0,
+            depreciation_rate: item.depreciation_rate || item.depreciation || 0,
+            salvage_value: item.salvage_value || 0,
+            useful_life_years: item.useful_life_years || 0,
+            depreciation_method: item.depreciation_method || 'Straight Line'
+        });
+        setIsEditing(true);
+        setFormData(prev => ({...prev, id: item.id}));
+        setShowModal(true);
     };
 
     const confirmDelete = (item) => {
-        setCurrentItem(item);
+        setItemToDelete(item);
         setDeleteDialogVisible(true);
     };
 
-    const saveItem = async () => {
-        if (!currentItem.asset_name?.trim()) {
-            showToast('warn', 'تحذير', 'اسم الأصل مطلوب');
-            return;
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!formData.asset_name?.trim()) return;
+
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) return;
+
+        const payload = {
+            asset_name: formData.asset_name,
+            purchase_date: formData.purchase_date ? new Date(formData.purchase_date).toISOString().split('T')[0] : null,
+            value: parseFloat(String(formData.value || 0).replace(/[^0-9.-]+/g, "")),
+            depreciation_rate: parseFloat(String(formData.depreciation_rate || 0).replace(/[^0-9.-]+/g, "")),
+            salvage_value: parseFloat(String(formData.salvage_value || 0).replace(/[^0-9.-]+/g, "")),
+            useful_life_years: parseFloat(String(formData.useful_life_years || 0).replace(/[^0-9.-]+/g, "")),
+            depreciation_method: formData.depreciation_method || 'Straight Line',
+            user_id: userData.user.id
+        };
+
+        if (isEditing) {
+            await supabase.from('fixed_assets').update(payload).eq('id', formData.id);
+        } else {
+            await supabase.from('fixed_assets').insert([payload]);
         }
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const payload = {
-                asset_name: currentItem.asset_name,
-                purchase_date: currentItem.purchase_date ? new Date(currentItem.purchase_date).toISOString().split('T')[0] : null,
-                value: parseFloat(String(currentItem.value || 0).replace(/[^0-9.-]+/g, "")),
-                depreciation_rate: parseFloat(String(currentItem.depreciation || 0).replace(/[^0-9.-]+/g, "")),
-                salvage_value: parseFloat(String(currentItem.salvage_value || 0).replace(/[^0-9.-]+/g, "")),
-                useful_life_years: parseFloat(String(currentItem.useful_life_years || 0).replace(/[^0-9.-]+/g, "")),
-                depreciation_method: currentItem.depreciation_method || 'Straight Line',
-                user_id: user.id
-            };
-
-            if (isEdit) {
-                const { error } = await supabase.from('fixed_assets').update(payload).eq('id', currentItem.id);
-                if (error) throw error;
-                showToast('success', 'نجاح', 'تم تحديث الأصل');
-            } else {
-                const { error } = await supabase.from('fixed_assets').insert([payload]);
-                if (error) throw error;
-                showToast('success', 'نجاح', 'تم إضافة أصل جديد');
-            }
-            setDialogVisible(false);
-            fetchItems();
-        } catch (error) {
-            console.error('SUPABASE INSERT ERROR:', error);
-            showToast('error', 'خطأ', 'فشل في حفظ البيانات');
-        }
+        setShowModal(false);
+        fetchData();
     };
 
-    const deleteItem = async () => {
-        try {
-            const { error } = await supabase.from('fixed_assets').delete().eq('id', currentItem.id);
-            if (error) throw error;
-            showToast('success', 'نجاح', 'تم حذف الأصل بنجاح');
-            setDeleteDialogVisible(false);
-            fetchItems();
-        } catch (error) {
-            console.error('Delete error:', error);
-            showToast('error', 'خطأ', 'فشل عملية الحذف');
-        }
+    const handleDelete = async () => {
+        if (!itemToDelete) return;
+        await supabase.from('fixed_assets').delete().eq('id', itemToDelete.id);
+        setDeleteDialogVisible(false);
+        setItemToDelete(null);
+        fetchData();
     };
 
-    const actionBodyTemplate = (rowData) => (
-        <div className="flex gap-2">
-            <Button icon="pi pi-pencil" rounded text severity="info" onClick={() => editItem(rowData)} />
-            <Button icon="pi pi-trash" rounded text severity="danger" onClick={() => confirmDelete(rowData)} />
-        </div>
-    );
-
-    const header = (
-        <div className="flex flex-wrap gap-2 items-center justify-between w-full">
-            <h4 className="m-0 text-xl font-bold text-white">الأصول الثابتة</h4>
-            <div className="flex items-center gap-4">
-                <span className="p-input-icon-right">
-                    <i className="pi pi-search" />
-                    <InputText type="search" onInput={(e) => setGlobalFilter(e.target.value)} placeholder="ابحث..." className="w-64 bg-slate-800 text-white border-slate-700" />
-                </span>
-                <Button label="إضافة أصل" icon="pi pi-plus" severity="success" onClick={openNew} />
-            </div>
-        </div>
+    const filteredItems = items.filter(a =>
+        a.asset_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
-        <div className="w-full flex flex-col gap-6 p-2 page-fade-in" dir="rtl">
-            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg w-full">
-                <DataTable value={items || []} paginator rows={10} dataKey="id" filterDisplay="row" loading={loading} globalFilter={globalFilter} header={header} emptyMessage="لا توجد أصول مسجلة." className="p-datatable-sm custom-dark-table" stripedRows>
-                    <Column field="id" header="الرقم" sortable style={{ width: '5%' }}></Column>
-                    <Column field="asset_name" header="اسم الأصل" sortable style={{ width: '25%' }}></Column>
-                    <Column field="purchase_date" header="تاريخ الشراء" sortable style={{ width: '15%' }}></Column>
-                    <Column field="value" header="القيمة" sortable style={{ width: '10%' }} body={(r) => `$${r.value}`}></Column>
-                    <Column field="salvage_value" header="قيمة الخردة" sortable style={{ width: '10%' }} body={(r) => `$${r.salvage_value || 0}`}></Column>
-                    <Column field="depreciation_method" header="طريقة الإهلاك" sortable style={{ width: '15%' }}></Column>
-                    <Column field="useful_life_years" header="العمر (سنوات)" sortable style={{ width: '10%' }}></Column>
-                    <Column body={actionBodyTemplate} exportable={false} style={{ width: '10%' }}></Column>
-                </DataTable>
+        <div className="w-full text-slate-200 p-6 page-fade-in" dir="rtl">
+            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
+                
+                {/* Header Layout */}
+                <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-[#0B1120]/50">
+                    <div className="flex items-center gap-4">
+                        <div className="relative w-64">
+                            <input
+                                type="text"
+                                placeholder="بحث..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-[#0F172A] border border-slate-700 rounded-lg py-2.5 px-4 pl-10 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                            />
+                            <Search className="absolute left-3 top-3 text-slate-500" size={18} />
+                        </div>
+
+                        <button
+                            onClick={openAddModal}
+                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold shadow-lg shadow-green-500/20"
+                        >
+                            <Plus size={20} /> إضافة أصل
+                        </button>
+                    </div>
+                    <h2 className="text-xl font-bold text-white tracking-wide">الأصول الثابتة</h2>
+                </div>
+
+                <div className="w-full overflow-x-auto">
+                    <table className="w-full text-right text-sm">
+                        <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
+                            <tr>
+                                <th className="p-4 font-semibold whitespace-nowrap">الرقم</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">اسم الأصل</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">تاريخ الشراء</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">القيمة</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">الخردة</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">طريقة الإهلاك</th>
+                                <th className="p-4 font-semibold whitespace-nowrap">العمر</th>
+                                <th className="p-4 font-semibold text-center whitespace-nowrap">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/50">
+                            {loading ? (
+                                <tr><td colSpan="8" className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
+                            ) : filteredItems.length === 0 ? (
+                                <tr><td colSpan="8" className="p-8 text-center text-slate-500">لا يوجد أصول مسجلة.</td></tr>
+                            ) : (
+                                filteredItems.map((item, index) => (
+                                    <tr key={item.id} className="hover:bg-[#1E293B]/50 transition-colors">
+                                        <td className="p-4 text-slate-400 font-mono">{index + 1}</td>
+                                        <td className="p-4 font-bold text-white">{item.asset_name}</td>
+                                        <td className="p-4 text-slate-300">{item.purchase_date || '-'}</td>
+                                        <td className="p-4 text-emerald-400 font-mono font-bold">${Number(item.value || 0).toLocaleString()}</td>
+                                        <td className="p-4 text-slate-300">${Number(item.salvage_value || 0).toLocaleString()}</td>
+                                        <td className="p-4 text-slate-300">{item.depreciation_method || '-'}</td>
+                                        <td className="p-4 text-slate-300">{item.useful_life_years || 0} سنوات</td>
+                                        <td className="p-4 flex justify-center gap-3">
+                                            <button onClick={() => openEditModal(item)} className="text-blue-400 hover:text-blue-300 transition-colors"><Edit size={18} /></button>
+                                            <button onClick={() => confirmDelete(item)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={18} /></button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <Dialog visible={dialogVisible} style={{ width: '450px' }} header={isEdit ? "تعديل الأصل" : "إضافة أصل جديد"} modal className="p-fluid" onHide={() => setDialogVisible(false)} dir="rtl">
-                <div className="field mt-4">
-                    <label htmlFor="asset_name" className="font-bold">اسم الأصل</label>
-                    <InputText id="asset_name" value={currentItem.asset_name} onChange={(e) => setCurrentItem({...currentItem, asset_name: e.target.value})} required autoFocus />
+            {/* Main Form Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-[#0B1120]">
+                            <h2 className="text-xl font-bold text-white">{isEditing ? 'تعديل الأصل' : 'إضافة أصل جديد'}</h2>
+                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-2">اسم الأصل <span className="text-red-500">*</span></label>
+                                <input type="text" name="asset_name" value={formData.asset_name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">تاريخ الشراء</label>
+                                    <input type="date" name="purchase_date" value={formData.purchase_date} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">طريقة الإهلاك</label>
+                                    <input type="text" name="depreciation_method" value={formData.depreciation_method} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">القيمة</label>
+                                    <input type="text" name="value" value={formData.value} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">قيمة الخردة</label>
+                                    <input type="text" name="salvage_value" value={formData.salvage_value} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">العمر (سنوات)</label>
+                                    <input type="text" name="useful_life_years" value={formData.useful_life_years} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">الإهلاك الحالي</label>
+                                    <input type="text" name="depreciation_rate" value={formData.depreciation_rate} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                            </div>
+                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
+                                    حفظ
+                                </button>
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-                <div className="field mt-4">
-                    <label htmlFor="purchase_date" className="font-bold">تاريخ الشراء</label>
-                    <InputText id="purchase_date" type="date" value={currentItem.purchase_date} onChange={(e) => setCurrentItem({...currentItem, purchase_date: e.target.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="value" className="font-bold">القيمة</label>
-                    <InputNumber id="value" value={currentItem.value} onValueChange={(e) => setCurrentItem({...currentItem, value: e.value})} mode="currency" currency="USD" locale="en-US" />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="salvage_value" className="font-bold">قيمة الخردة (الخردة)</label>
-                    <InputNumber id="salvage_value" value={currentItem.salvage_value} onValueChange={(e) => setCurrentItem({...currentItem, salvage_value: e.value})} mode="currency" currency="USD" locale="en-US" />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="useful_life_years" className="font-bold">العمر الإنتاجي (سنوات)</label>
-                    <InputNumber id="useful_life_years" value={currentItem.useful_life_years} onValueChange={(e) => setCurrentItem({...currentItem, useful_life_years: e.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="depreciation_method" className="font-bold">طريقة الإهلاك</label>
-                    <InputText id="depreciation_method" value={currentItem.depreciation_method} onChange={(e) => setCurrentItem({...currentItem, depreciation_method: e.target.value})} />
-                </div>
-                <div className="field mt-4">
-                    <label htmlFor="depreciation" className="font-bold">الإهلاك الحالي</label>
-                    <InputNumber id="depreciation" value={currentItem.depreciation} onValueChange={(e) => setCurrentItem({...currentItem, depreciation: e.value})} mode="currency" currency="USD" locale="en-US" />
-                </div>
-                <div className="flex justify-end gap-2 mt-6">
-                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDialogVisible(false)} />
-                    <Button label="حفظ" icon="pi pi-check" onClick={saveItem} />
-                </div>
-            </Dialog>
+            )}
 
-            <Dialog visible={deleteDialogVisible} style={{ width: '450px' }} header="تأكيد الحذف" modal onHide={() => setDeleteDialogVisible(false)} dir="rtl">
-                <div className="flex items-center justify-center gap-4 py-4">
-                    <i className="pi pi-exclamation-triangle text-red-500" style={{ fontSize: '2rem' }} />
-                    <span>هل أنت متأكد من حذف هذا الأصل <b>{currentItem.asset_name}</b>؟</span>
+            {/* Delete Confirmation Modal */}
+            {deleteDialogVisible && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 text-center">
+                            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                                <Trash2 size={32} className="text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">تأكيد الحذف</h3>
+                            <p className="text-slate-400 mb-6">هل أنت متأكد من حذف هذا الأصل؟ لا يمكن التراجع عن هذه العملية.</p>
+                            <div className="flex gap-3">
+                                <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                                    نعم، احذف
+                                </button>
+                                <button onClick={() => setDeleteDialogVisible(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDeleteDialogVisible(false)} />
-                    <Button label="حذف" icon="pi pi-trash" severity="danger" onClick={deleteItem} />
-                </div>
-            </Dialog>
+            )}
         </div>
     );
 };
