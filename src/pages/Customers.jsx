@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../config/supabaseClient';
 import { Plus, Edit, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
 
 const Customers = () => {
