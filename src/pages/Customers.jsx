@@ -1,215 +1,194 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { Plus, Edit, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { Button } from 'primereact/button';
+import { Dialog } from 'primereact/dialog';
+import { InputText } from 'primereact/inputtext';
+import { InputNumber } from 'primereact/inputnumber';
+import { useToast } from '../context/ToastContext';
 
 const Customers = () => {
-    const [customers, setCustomers] = useState([]);
+    const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    // التحكم بالشاشة المنبثقة
+    const [globalFilter, setGlobalFilter] = useState('');
     const [showModal, setShowModal] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editId, setEditId] = useState(null);
+    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+    const [currentItem, setCurrentItem] = useState({ name: '', email: '', phone: '', address: '', city: '', balance: 0 });
+    const [isEdit, setIsEdit] = useState(false);
 
-    const [formData, setFormData] = useState({
-        name: '', email: '', phone: '', address: '', city: '', balance: 0
-    });
+    const { showToast } = useToast();
 
-    const fetchCustomers = async () => {
+    const fetchData = async () => {
         setLoading(true);
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user) {
-            const { data, error } = await supabase
-                .from('customers')
-                .select('*')
-                .eq('user_id', userData.user.id)
-                .order('created_at', { ascending: false });
-            if (!error) setCustomers(data);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
+            setLoading(false);
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('id', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching customers:', error);
+            if (error.code !== 'PGRST116') {
+                // showToast('error', 'خطأ', 'فشل جلب العملاء');
+            }
+        } else {
+            setItems(data || []);
         }
         setLoading(false);
     };
 
-    useEffect(() => {
-        fetchCustomers();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    // فتح شاشة الإضافة
-    const openAddModal = () => {
-        setFormData({ name: '', email: '', phone: '', address: '', city: '', balance: 0 });
-        setIsEditing(false);
+    const openNew = () => {
+        setCurrentItem({ name: '', email: '', phone: '', address: '', city: '', balance: 0 });
+        setIsEdit(false);
         setShowModal(true);
     };
 
-    // فتح شاشة التعديل
-    const openEditModal = (customer) => {
-        setFormData({
-            name: customer.name, email: customer.email || '', phone: customer.phone || '',
-            address: customer.address || '', city: customer.city || '', balance: customer.balance
-        });
-        setEditId(customer.id);
-        setIsEditing(true);
+    const editItem = (item) => {
+        setCurrentItem({ ...item });
+        setIsEdit(true);
         setShowModal(true);
     };
 
-    // الحفظ (إضافة أو تعديل)
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData?.user) return;
-
-        if (isEditing) {
-            await supabase.from('customers').update(formData).eq('id', editId);
-        } else {
-            await supabase.from('customers').insert([{ ...formData, user_id: userData.user.id }]);
-        }
-        setShowModal(false);
-        fetchCustomers();
+    const confirmDelete = (item) => {
+        setCurrentItem(item);
+        setDeleteDialogVisible(true);
     };
 
-    // الحذف
-    const handleDelete = async (id) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا العميل؟')) {
-            await supabase.from('customers').delete().eq('id', id);
-            fetchCustomers();
+    const saveItem = async () => {
+        if (!currentItem.name?.trim()) {
+            showToast('warn', 'تحذير', 'اسم العميل مطلوب');
+            return;
+        }
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const payload = {
+                name: currentItem.name,
+                email: currentItem.email,
+                phone: currentItem.phone,
+                address: currentItem.address,
+                city: currentItem.city,
+                balance: parseFloat(String(currentItem.balance || 0).replace(/[^0-9.-]+/g,"")),
+                user_id: user.id
+            };
+
+            if (isEdit) {
+                const { error } = await supabase.from('customers').update(payload).eq('id', currentItem.id);
+                if (error) throw error;
+                showToast('success', 'نجاح', 'تم تحديث بيانات العميل');
+            } else {
+                const { error } = await supabase.from('customers').insert([payload]);
+                if (error) throw error;
+                showToast('success', 'نجاح', 'تم إضافة عميل جديد');
+            }
+            setShowModal(false);
+            fetchData();
+        } catch (error) {
+            console.error('SUPABASE INSERT ERROR:', error);
+            showToast('error', 'خطأ', 'فشل في حفظ البيانات');
         }
     };
 
-    const filteredCustomers = customers.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.phone && c.phone.includes(searchTerm))
+    const deleteItem = async () => {
+        try {
+            const { error } = await supabase.from('customers').delete().eq('id', currentItem.id);
+            if (error) throw error;
+            showToast('success', 'نجاح', 'تم حذف العميل بنجاح');
+            setDeleteDialogVisible(false);
+            fetchData();
+        } catch (error) {
+            console.error('Delete error:', error);
+            showToast('error', 'خطأ', 'فشل عملية الحذف');
+        }
+    };
+
+    const actionBodyTemplate = (rowData) => (
+        <div className="flex gap-2">
+            <Button icon="pi pi-pencil" rounded text severity="info" onClick={() => editItem(rowData)} />
+            <Button icon="pi pi-trash" rounded text severity="danger" onClick={() => confirmDelete(rowData)} />
+        </div>
+    );
+
+    const header = (
+        <div className="flex flex-wrap gap-2 items-center justify-between w-full">
+            <h4 className="m-0 text-xl font-bold text-white">إدارة العملاء</h4>
+            <div className="flex items-center gap-4">
+                <span className="p-input-icon-right">
+                    <i className="pi pi-search" />
+                    <InputText type="search" onInput={(e) => setGlobalFilter(e.target.value)} placeholder="ابحث..." className="w-64 bg-slate-800 text-white border-slate-700" />
+                </span>
+                <Button label="إضافة عميل" icon="pi pi-plus" severity="success" onClick={openNew} />
+            </div>
+        </div>
     );
 
     return (
-        <div className="w-full text-slate-200 p-6" dir="rtl">
-
-            {/* الكارد الرئيسي للجدول */}
-            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
-
-                {/* شريط الأدوات العلوي */}
-                <div className="p-5 border-b border-slate-800 flex justify-between items-center">
-
-                    <h2 className="text-lg font-bold text-white">إدارة العملاء</h2>
-
-                    <div className="flex items-center gap-4">
-                        {/* مربع البحث */}
-                        <div className="relative w-64">
-                            <input
-                                type="text"
-                                placeholder="بحث..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-[#0B1120] border border-slate-700 rounded-lg py-2 px-4 pl-10 text-slate-200 focus:border-blue-500 outline-none"
-                            />
-                            <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
-                        </div>
-
-                        {/* الزر الأخضر */}
-                        <button
-                            onClick={openAddModal}
-                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold"
-                        >
-                            إضافة عميل <Plus size={20} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* الجدول */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-right text-sm">
-                        <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
-                            <tr>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الرقم <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الاسم <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الهاتف <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">البريد الإلكتروني <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الرصيد <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold text-center">إجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50">
-                            {loading ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
-                            ) : filteredCustomers.length === 0 ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">لا يوجد بيانات متاحة.</td></tr>
-                            ) : (
-                                filteredCustomers.map((c, index) => (
-                                    <tr key={c.id} className="hover:bg-[#1E293B]/50 transition-colors">
-                                        <td className="p-4 text-slate-400 font-mono">{index + 1}</td>
-                                        <td className="p-4 font-bold text-white">{c.name}</td>
-                                        <td className="p-4 text-slate-300" dir="ltr">{c.phone || '-'}</td>
-                                        <td className="p-4 text-slate-300">{c.email || '-'}</td>
-                                        <td className="p-4 text-emerald-400 font-mono font-bold">{Number(c.balance).toFixed(2)}</td>
-                                        <td className="p-4 flex justify-center gap-3">
-                                            <button onClick={() => openEditModal(c)} className="text-blue-400 hover:text-blue-300 transition-colors"><Edit size={18} /></button>
-                                            <button onClick={() => handleDelete(c.id)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={18} /></button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+        <div className="w-full flex flex-col gap-6 p-2 page-fade-in" dir="rtl">
+            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg w-full">
+                <DataTable value={items || []} paginator rows={10} dataKey="id" filterDisplay="row" loading={loading} globalFilter={globalFilter} header={header} emptyMessage="لا يوجد عملاء." className="p-datatable-sm custom-dark-table" stripedRows>
+                    <Column field="id" header="الرقم" sortable style={{ width: '10%' }}></Column>
+                    <Column field="name" header="الاسم" sortable style={{ width: '20%' }}></Column>
+                    <Column field="phone" header="الهاتف" sortable style={{ width: '15%' }}></Column>
+                    <Column field="email" header="البريد الإلكتروني" sortable style={{ width: '20%' }}></Column>
+                    <Column field="city" header="المدينة" sortable style={{ width: '15%' }}></Column>
+                    <Column field="balance" header="الرصيد" sortable style={{ width: '10%' }} body={(r) => `$${r.balance || 0}`}></Column>
+                    <Column body={actionBodyTemplate} exportable={false} style={{ width: '10%' }}></Column>
+                </DataTable>
             </div>
 
-            {/* الشاشة المنبثقة (Modal) */}
-            {showModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-[#0B1120]">
-                            <h2 className="text-xl font-bold text-white">{isEditing ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</h2>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-2">اسم العميل <span className="text-red-500">*</span></label>
-                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-2">رقم الهاتف</label>
-                                    <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-2">الرصيد الافتتاحي</label>
-                                    <input type="number" step="0.01" name="balance" value={formData.balance} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-2">البريد الإلكتروني</label>
-                                <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                            </div>
-
-                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
-                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
-                                    حفظ البيانات
-                                </button>
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
-                                    إلغاء
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+            <Dialog visible={showModal} style={{ width: '450px' }} header={isEdit ? "تعديل بيانات العميل" : "إضافة عميل جديد"} modal className="p-fluid" onHide={() => setShowModal(false)} dir="rtl">
+                <div className="field mt-4">
+                    <label htmlFor="name" className="font-bold">اسم العميل</label>
+                    <InputText id="name" value={currentItem.name} onChange={(e) => setCurrentItem({...currentItem, name: e.target.value})} required autoFocus />
                 </div>
-            )}
+                <div className="field mt-4">
+                    <label htmlFor="phone" className="font-bold">الهاتف</label>
+                    <InputText id="phone" value={currentItem.phone} onChange={(e) => setCurrentItem({...currentItem, phone: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="email" className="font-bold">البريد الإلكتروني</label>
+                    <InputText id="email" type="email" value={currentItem.email} onChange={(e) => setCurrentItem({...currentItem, email: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="city" className="font-bold">المدينة</label>
+                    <InputText id="city" value={currentItem.city} onChange={(e) => setCurrentItem({...currentItem, city: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="address" className="font-bold">العنوان</label>
+                    <InputText id="address" value={currentItem.address} onChange={(e) => setCurrentItem({...currentItem, address: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="balance" className="font-bold">الرصيد</label>
+                    <InputNumber id="balance" value={currentItem.balance} onValueChange={(e) => setCurrentItem({...currentItem, balance: e.value})} mode="currency" currency="USD" locale="en-US" />
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setShowModal(false)} />
+                    <Button label="حفظ" icon="pi pi-check" onClick={saveItem} />
+                </div>
+            </Dialog>
 
+            <Dialog visible={deleteDialogVisible} style={{ width: '450px' }} header="تأكيد الحذف" modal onHide={() => setDeleteDialogVisible(false)} dir="rtl">
+                <div className="flex items-center justify-center gap-4 py-4">
+                    <i className="pi pi-exclamation-triangle text-red-500" style={{ fontSize: '2rem' }} />
+                    <span>هل أنت متأكد من حذف هذا العميل؟</span>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDeleteDialogVisible(false)} />
+                    <Button label="حذف" icon="pi pi-trash" severity="danger" onClick={deleteItem} />
+                </div>
+            </Dialog>
         </div>
     );
 };

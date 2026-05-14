@@ -1,217 +1,180 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { Plus, Edit, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { Button } from 'primereact/button';
+import { Dialog } from 'primereact/dialog';
+import { InputText } from 'primereact/inputtext';
+import { InputNumber } from 'primereact/inputnumber';
+import { useToast } from '../context/ToastContext';
 
 const Employees = () => {
-    const [employees, setEmployees] = useState([]);
+    const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    // التحكم بالشاشة المنبثقة
+    const [globalFilter, setGlobalFilter] = useState('');
     const [showModal, setShowModal] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editId, setEditId] = useState(null);
+    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+    const [currentItem, setCurrentItem] = useState({ full_name: '', position: '', salary: 0, hire_date: '' });
+    const [isEdit, setIsEdit] = useState(false);
 
-    const [formData, setFormData] = useState({
-        full_name: '', position: '', salary: 0, hire_date: ''
-    });
+    const { showToast } = useToast();
 
-    const fetchEmployees = async () => {
+    const fetchData = async () => {
         setLoading(true);
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user) {
-            const { data, error } = await supabase
-                .from('employees')
-                .select('*')
-                .eq('user_id', userData.user.id)
-                .order('id', { ascending: false });
-            if (!error) setEmployees(data || []);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
+            setLoading(false);
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('employees')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('id', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching employees:', error);
+        } else {
+            setItems(data || []);
         }
         setLoading(false);
     };
 
-    useEffect(() => {
-        fetchEmployees();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    // فتح شاشة الإضافة
-    const openAddModal = () => {
-        setFormData({ full_name: '', position: '', salary: 0, hire_date: new Date().toISOString().split('T')[0] });
-        setIsEditing(false);
+    const openNew = () => {
+        setCurrentItem({ full_name: '', position: '', salary: 0, hire_date: new Date().toISOString().split('T')[0] });
+        setIsEdit(false);
         setShowModal(true);
     };
 
-    // فتح شاشة التعديل
-    const openEditModal = (emp) => {
-        setFormData({
-            full_name: emp.full_name,
-            position: emp.position || '',
-            salary: emp.salary || 0,
-            hire_date: emp.hire_date || ''
-        });
-        setEditId(emp.id);
-        setIsEditing(true);
+    const editItem = (item) => {
+        setCurrentItem({ ...item });
+        setIsEdit(true);
         setShowModal(true);
     };
 
-    // الحفظ (إضافة أو تعديل)
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData?.user) return;
-
-        if (isEditing) {
-            await supabase.from('employees').update(formData).eq('id', editId);
-        } else {
-            await supabase.from('employees').insert([{ ...formData, user_id: userData.user.id }]);
-        }
-        setShowModal(false);
-        fetchEmployees();
+    const confirmDelete = (item) => {
+        setCurrentItem(item);
+        setDeleteDialogVisible(true);
     };
 
-    // الحذف
-    const handleDelete = async (id) => {
-        if (window.confirm('هل أنت متأكد من حذف هذا الموظف؟')) {
-            await supabase.from('employees').delete().eq('id', id);
-            fetchEmployees();
+    const saveItem = async () => {
+        if (!currentItem.full_name?.trim()) {
+            showToast('warn', 'تحذير', 'اسم الموظف مطلوب');
+            return;
+        }
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const payload = {
+                full_name: currentItem.full_name,
+                position: currentItem.position,
+                salary: parseFloat(String(currentItem.salary || 0).replace(/[^0-9.-]+/g,"")),
+                hire_date: currentItem.hire_date ? new Date(currentItem.hire_date).toISOString().split('T')[0] : null,
+                user_id: user.id
+            };
+
+            if (isEdit) {
+                const { error } = await supabase.from('employees').update(payload).eq('id', currentItem.id);
+                if (error) throw error;
+                showToast('success', 'نجاح', 'تم تحديث بيانات الموظف');
+            } else {
+                const { error } = await supabase.from('employees').insert([payload]);
+                if (error) throw error;
+                showToast('success', 'نجاح', 'تم إضافة موظف جديد');
+            }
+            setShowModal(false);
+            fetchData();
+        } catch (error) {
+            console.error('SUPABASE INSERT ERROR:', error);
+            showToast('error', 'خطأ', 'فشل في حفظ البيانات');
         }
     };
 
-    const filteredEmployees = employees.filter(e =>
-        e.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (e.position && e.position.toLowerCase().includes(searchTerm.toLowerCase()))
+    const deleteItem = async () => {
+        try {
+            const { error } = await supabase.from('employees').delete().eq('id', currentItem.id);
+            if (error) throw error;
+            showToast('success', 'نجاح', 'تم حذف الموظف بنجاح');
+            setDeleteDialogVisible(false);
+            fetchData();
+        } catch (error) {
+            console.error('Delete error:', error);
+            showToast('error', 'خطأ', 'فشل عملية الحذف');
+        }
+    };
+
+    const actionBodyTemplate = (rowData) => (
+        <div className="flex gap-2">
+            <Button icon="pi pi-pencil" rounded text severity="info" onClick={() => editItem(rowData)} />
+            <Button icon="pi pi-trash" rounded text severity="danger" onClick={() => confirmDelete(rowData)} />
+        </div>
+    );
+
+    const header = (
+        <div className="flex flex-wrap gap-2 items-center justify-between w-full">
+            <h4 className="m-0 text-xl font-bold text-white">إدارة الموظفين</h4>
+            <div className="flex items-center gap-4">
+                <span className="p-input-icon-right">
+                    <i className="pi pi-search" />
+                    <InputText type="search" onInput={(e) => setGlobalFilter(e.target.value)} placeholder="ابحث..." className="w-64 bg-slate-800 text-white border-slate-700" />
+                </span>
+                <Button label="إضافة موظف" icon="pi pi-plus" severity="success" onClick={openNew} />
+            </div>
+        </div>
     );
 
     return (
-        <div className="w-full text-slate-200 p-6" dir="rtl">
-
-            {/* الكارد الرئيسي للجدول */}
-            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
-
-                {/* شريط الأدوات العلوي */}
-                <div className="p-5 border-b border-slate-800 flex justify-between items-center">
-
-                    <h2 className="text-lg font-bold text-white">إدارة الموظفين</h2>
-
-                    <div className="flex items-center gap-4">
-                        {/* مربع البحث */}
-                        <div className="relative w-64">
-                            <input
-                                type="text"
-                                placeholder="بحث..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-[#0B1120] border border-slate-700 rounded-lg py-2 px-4 pl-10 text-slate-200 focus:border-blue-500 outline-none"
-                            />
-                            <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
-                        </div>
-
-                        {/* الزر الأخضر */}
-                        <button
-                            onClick={openAddModal}
-                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold"
-                        >
-                            إضافة موظف <Plus size={20} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* الجدول */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-right text-sm">
-                        <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
-                            <tr>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الرقم <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الاسم الكامل <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">المنصب <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">الراتب <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-start">تاريخ التعيين <ArrowUpDown size={14} className="text-slate-500" /></div>
-                                </th>
-                                <th className="p-4 font-semibold text-center">إجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50">
-                            {loading ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
-                            ) : filteredEmployees.length === 0 ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-500">لا يوجد بيانات متاحة.</td></tr>
-                            ) : (
-                                filteredEmployees.map((emp, index) => (
-                                    <tr key={emp.id} className="hover:bg-[#1E293B]/50 transition-colors">
-                                        <td className="p-4 text-slate-400 font-mono">{index + 1}</td>
-                                        <td className="p-4 font-bold text-white">{emp.full_name}</td>
-                                        <td className="p-4 text-slate-300">{emp.position || '-'}</td>
-                                        <td className="p-4 text-emerald-400 font-mono font-bold">${Number(emp.salary).toLocaleString()}</td>
-                                        <td className="p-4 text-slate-300">{emp.hire_date || '-'}</td>
-                                        <td className="p-4 flex justify-center gap-3">
-                                            <button onClick={() => openEditModal(emp)} className="text-blue-400 hover:text-blue-300 transition-colors"><Edit size={18} /></button>
-                                            <button onClick={() => handleDelete(emp.id)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={18} /></button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+        <div className="w-full flex flex-col gap-6 p-2 page-fade-in" dir="rtl">
+            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg w-full">
+                <DataTable value={items || []} paginator rows={10} dataKey="id" filterDisplay="row" loading={loading} globalFilter={globalFilter} header={header} emptyMessage="لا يوجد موظفين." className="p-datatable-sm custom-dark-table" stripedRows>
+                    <Column field="id" header="الرقم" sortable style={{ width: '10%' }}></Column>
+                    <Column field="full_name" header="الاسم الكامل" sortable style={{ width: '25%' }}></Column>
+                    <Column field="position" header="المنصب" sortable style={{ width: '20%' }}></Column>
+                    <Column field="hire_date" header="تاريخ التعيين" sortable style={{ width: '15%' }}></Column>
+                    <Column field="salary" header="الراتب الأساسي" sortable style={{ width: '15%' }} body={(r) => `$${r.salary || 0}`}></Column>
+                    <Column body={actionBodyTemplate} exportable={false} style={{ width: '15%' }}></Column>
+                </DataTable>
             </div>
 
-            {/* الشاشة المنبثقة (Modal) */}
-            {showModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-[#0B1120]">
-                            <h2 className="text-xl font-bold text-white">{isEditing ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}</h2>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-2">الاسم الكامل <span className="text-red-500">*</span></label>
-                                <input type="text" name="full_name" value={formData.full_name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-2">المنصب</label>
-                                    <input type="text" name="position" value={formData.position} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-2">الراتب الأساسي</label>
-                                    <input type="number" step="0.01" name="salary" value={formData.salary} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm text-slate-400 mb-2">تاريخ التعيين</label>
-                                <input type="date" name="hire_date" value={formData.hire_date} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                            </div>
-
-                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
-                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
-                                    حفظ البيانات
-                                </button>
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
-                                    إلغاء
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+            <Dialog visible={showModal} style={{ width: '450px' }} header={isEdit ? "تعديل بيانات الموظف" : "إضافة موظف جديد"} modal className="p-fluid" onHide={() => setShowModal(false)} dir="rtl">
+                <div className="field mt-4">
+                    <label htmlFor="full_name" className="font-bold">الاسم الكامل</label>
+                    <InputText id="full_name" value={currentItem.full_name} onChange={(e) => setCurrentItem({...currentItem, full_name: e.target.value})} required autoFocus />
                 </div>
-            )}
+                <div className="field mt-4">
+                    <label htmlFor="position" className="font-bold">المنصب</label>
+                    <InputText id="position" value={currentItem.position} onChange={(e) => setCurrentItem({...currentItem, position: e.target.value})} />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="salary" className="font-bold">الراتب الأساسي</label>
+                    <InputNumber id="salary" value={currentItem.salary} onValueChange={(e) => setCurrentItem({...currentItem, salary: e.value})} mode="currency" currency="USD" locale="en-US" />
+                </div>
+                <div className="field mt-4">
+                    <label htmlFor="hire_date" className="font-bold">تاريخ التعيين</label>
+                    <InputText id="hire_date" type="date" value={currentItem.hire_date} onChange={(e) => setCurrentItem({...currentItem, hire_date: e.target.value})} />
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setShowModal(false)} />
+                    <Button label="حفظ" icon="pi pi-check" onClick={saveItem} />
+                </div>
+            </Dialog>
 
+            <Dialog visible={deleteDialogVisible} style={{ width: '450px' }} header="تأكيد الحذف" modal onHide={() => setDeleteDialogVisible(false)} dir="rtl">
+                <div className="flex items-center justify-center gap-4 py-4">
+                    <i className="pi pi-exclamation-triangle text-red-500" style={{ fontSize: '2rem' }} />
+                    <span>هل أنت متأكد من حذف هذا الموظف؟</span>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button label="إلغاء" icon="pi pi-times" outlined onClick={() => setDeleteDialogVisible(false)} />
+                    <Button label="حذف" icon="pi pi-trash" severity="danger" onClick={deleteItem} />
+                </div>
+            </Dialog>
         </div>
     );
 };
