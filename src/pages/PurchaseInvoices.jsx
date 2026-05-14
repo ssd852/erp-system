@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
 import { Plus, Edit, Trash2, X, Search } from 'lucide-react';
 
-const statusBadge = (s) => s === 'Paid' ? 'bg-emerald-500/15 text-emerald-400' : s === 'Overdue' ? 'bg-red-500/15 text-red-400' : 'bg-yellow-500/15 text-yellow-400';
-const statusLabel = (s) => s === 'Paid' ? 'مدفوع' : s === 'Overdue' ? 'متأخر' : 'معلق';
+const n = (v) => parseFloat(String(v||0).replace(/[^0-9.-]+/g,''))||0;
+const statusStyle = (s) => s==='Paid' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : s==='Overdue' ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20';
+const statusLabel = (s) => s==='Paid' ? 'مدفوع' : s==='Overdue' ? 'متأخر' : 'معلق';
 
 const PurchaseInvoices = () => {
     const [items, setItems] = useState([]);
@@ -24,17 +25,16 @@ const PurchaseInvoices = () => {
         setSuppliers(sData || []);
         setLoading(false);
     };
-
     useEffect(() => { fetchData(); }, []);
 
     const openAdd = () => { setForm({ supplier_id: '', date: new Date().toISOString().split('T')[0], total_amount: '', status: 'Pending' }); setIsEditing(false); setShowModal(true); };
-    const openEdit = (item) => { setForm({ id: item.id, supplier_id: item.supplier_id || '', date: item.invoice_date || item.date || '', total_amount: item.total_amount || '', status: item.status || 'Pending' }); setIsEditing(true); setShowModal(true); };
+    const openEdit = (item) => { setForm({ id: item.id, supplier_id: item.supplier_id||'', date: item.invoice_date||item.date||'', total_amount: item.total_amount||'', status: item.status||'Pending' }); setIsEditing(true); setShowModal(true); };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const payload = { supplier_id: form.supplier_id, invoice_date: form.date || null, total_amount: parseFloat(String(form.total_amount || 0).replace(/[^0-9.-]+/g, '')) || 0, status: form.status };
-        if (isEditing) { await supabase.from('purchase_invoices').update(payload).eq('id', form.id); }
-        else { await supabase.from('purchase_invoices').insert([payload]); }
+        const payload = { supplier_id: form.supplier_id, invoice_date: form.date||null, total_amount: n(form.total_amount), status: form.status };
+        if (isEditing) await supabase.from('purchase_invoices').update(payload).eq('id', form.id);
+        else await supabase.from('purchase_invoices').insert([payload]);
         setShowModal(false); fetchData();
     };
 
@@ -44,52 +44,50 @@ const PurchaseInvoices = () => {
         setDeleteModal(false); setItemToDelete(null); fetchData();
     };
 
-    const filtered = items.filter(i => (i.suppliers?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || String(i.id || '').includes(searchTerm));
+    const filtered = items.filter(i => (i.suppliers?.name||'').toLowerCase().includes(searchTerm.toLowerCase()) || String(i.id||'').includes(searchTerm));
 
     return (
         <div className="p-6 w-full min-h-screen bg-[#0B1120]" dir="rtl">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white">فواتير المشتريات</h2>
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-2xl font-extrabold text-white tracking-tight">فواتير المشتريات</h1>
                 <div className="flex items-center gap-3">
                     <div className="relative">
-                        <input type="text" placeholder="بحث..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg py-2.5 px-4 pl-10 w-64 outline-none focus:border-blue-500 transition-colors" />
-                        <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+                        <input type="text" placeholder="بحث عن فاتورة..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                            className="bg-[#1E293B] border border-slate-700 text-white rounded-xl py-2.5 px-4 pl-10 w-64 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all text-sm" />
+                        <Search size={15} className="absolute left-3 top-3 text-slate-500" />
                     </div>
-                    <button onClick={openAdd} className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-bold transition-colors">
-                        <Plus size={18} /> إضافة فاتورة
+                    <button onClick={openAdd} className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold text-sm transition-all shadow-lg shadow-green-900/30">
+                        <Plus size={17} /> إضافة فاتورة
                     </button>
                 </div>
             </div>
 
-            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+            <div className="rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-right">
-                        <thead className="bg-slate-800/60 text-slate-400 border-b border-slate-800">
+                        <thead className="bg-[#1E293B] sticky top-0">
                             <tr>
-                                <th className="p-4 font-semibold">#</th>
-                                <th className="p-4 font-semibold">المورد</th>
-                                <th className="p-4 font-semibold">التاريخ</th>
-                                <th className="p-4 font-semibold">الإجمالي</th>
-                                <th className="p-4 font-semibold">الحالة</th>
-                                <th className="p-4 font-semibold text-center">إجراءات</th>
+                                {['#','المورد','التاريخ','الإجمالي','الحالة','إجراءات'].map(h => (
+                                    <th key={h} className="p-4 text-slate-300 font-semibold uppercase tracking-wider text-xs whitespace-nowrap">{h}</th>
+                                ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/70">
+                        <tbody className="bg-[#0F172A] divide-y divide-slate-800/50">
                             {loading ? (
-                                <tr><td colSpan={6} className="p-10 text-center text-slate-500">جاري التحميل...</td></tr>
+                                <tr><td colSpan={6} className="p-12 text-center text-slate-600">جاري التحميل...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan={6} className="p-10 text-center text-slate-500">لا توجد فواتير.</td></tr>
+                                <tr><td colSpan={6} className="p-12 text-center text-slate-600">لا توجد فواتير.</td></tr>
                             ) : filtered.map((item) => (
-                                <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="p-4 text-slate-500">{item.id}</td>
-                                    <td className="p-4 font-semibold text-white">{item.suppliers?.name || '-'}</td>
-                                    <td className="p-4 text-slate-300">{item.invoice_date || item.date || '-'}</td>
-                                    <td className="p-4 text-emerald-400 font-mono font-bold">${Number(item.total_amount || 0).toLocaleString()}</td>
-                                    <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge(item.status)}`}>{statusLabel(item.status)}</span></td>
+                                <tr key={item.id} className="hover:bg-[#1E293B]/50 transition-colors duration-150">
+                                    <td className="p-4 text-slate-600 font-mono text-xs">{item.id}</td>
+                                    <td className="p-4 font-bold text-white">{item.suppliers?.name||'—'}</td>
+                                    <td className="p-4 text-slate-400">{item.invoice_date||item.date||'—'}</td>
+                                    <td className="p-4 font-mono font-bold text-emerald-400">${Number(item.total_amount||0).toLocaleString()}</td>
+                                    <td className="p-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle(item.status)}`}>{statusLabel(item.status)}</span></td>
                                     <td className="p-4">
                                         <div className="flex gap-2 justify-center">
-                                            <button onClick={() => openEdit(item)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"><Edit size={15} /></button>
-                                            <button onClick={() => { setItemToDelete(item); setDeleteModal(true); }} className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"><Trash2 size={15} /></button>
+                                            <button onClick={() => openEdit(item)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/25 transition-colors"><Edit size={14}/></button>
+                                            <button onClick={() => { setItemToDelete(item); setDeleteModal(true); }} className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/25 transition-colors"><Trash2 size={14}/></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -101,27 +99,27 @@ const PurchaseInvoices = () => {
 
             {showModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
+                    <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl">
                         <div className="flex items-center justify-between p-5 border-b border-slate-800">
-                            <h3 className="text-lg font-bold text-white">{isEditing ? 'تعديل الفاتورة' : 'إضافة فاتورة مشتريات'}</h3>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"><X size={20} /></button>
+                            <h2 className="text-lg font-extrabold text-white">{isEditing ? 'تعديل الفاتورة' : 'إضافة فاتورة مشتريات'}</h2>
+                            <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"><X size={18}/></button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-5 space-y-4">
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1.5">المورد *</label>
-                                <select required value={form.supplier_id} onChange={e => setForm({ ...form, supplier_id: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors appearance-none">
+                                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">المورد *</label>
+                                <select required value={form.supplier_id} onChange={e => setForm({...form, supplier_id: e.target.value})} className="w-full bg-[#0B1120] border border-slate-700 text-white rounded-xl p-3 outline-none focus:border-blue-500 transition-all appearance-none">
                                     <option value="">اختر المورد...</option>
                                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1.5">التاريخ</label>
-                                    <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" />
+                                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">التاريخ</label>
+                                    <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full bg-[#0B1120] border border-slate-700 text-white rounded-xl p-3 outline-none focus:border-blue-500 transition-all" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1.5">الحالة</label>
-                                    <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors appearance-none">
+                                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">الحالة</label>
+                                    <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full bg-[#0B1120] border border-slate-700 text-white rounded-xl p-3 outline-none focus:border-blue-500 transition-all appearance-none">
                                         <option value="Pending">معلق</option>
                                         <option value="Paid">مدفوع</option>
                                         <option value="Overdue">متأخر</option>
@@ -129,12 +127,12 @@ const PurchaseInvoices = () => {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1.5">الإجمالي</label>
-                                <input type="text" value={form.total_amount} onChange={e => setForm({ ...form, total_amount: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" dir="ltr" />
+                                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">الإجمالي</label>
+                                <input type="text" value={form.total_amount} onChange={e => setForm({...form, total_amount: e.target.value})} className="w-full bg-[#0B1120] border border-slate-700 text-white rounded-xl p-3 outline-none focus:border-blue-500 transition-all" dir="ltr" />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">حفظ</button>
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg border border-slate-700 transition-colors">إلغاء</button>
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-xl transition-colors">حفظ</button>
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl border border-slate-700 transition-colors">إلغاء</button>
                             </div>
                         </form>
                     </div>
@@ -143,13 +141,13 @@ const PurchaseInvoices = () => {
 
             {deleteModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-sm shadow-2xl p-6 text-center">
-                        <div className="w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mx-auto mb-4"><Trash2 size={28} className="text-red-400" /></div>
-                        <h3 className="text-lg font-bold text-white mb-2">تأكيد الحذف</h3>
-                        <p className="text-slate-400 mb-6 text-sm">هل أنت متأكد من حذف الفاتورة رقم <span className="text-white font-semibold">#{itemToDelete?.id}</span>؟</p>
+                    <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+                        <div className="w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mx-auto mb-4"><Trash2 size={26} className="text-red-400"/></div>
+                        <h3 className="text-lg font-extrabold text-white mb-2">تأكيد الحذف</h3>
+                        <p className="text-slate-400 text-sm mb-6">هل أنت متأكد من حذف الفاتورة <span className="text-white font-bold">#{itemToDelete?.id}</span>؟</p>
                         <div className="flex gap-3">
-                            <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg transition-colors">نعم، احذف</button>
-                            <button onClick={() => setDeleteModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-lg border border-slate-700 transition-colors">إلغاء</button>
+                            <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl transition-colors">نعم، احذف</button>
+                            <button onClick={() => setDeleteModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl border border-slate-700 transition-colors">إلغاء</button>
                         </div>
                     </div>
                 </div>
@@ -157,5 +155,4 @@ const PurchaseInvoices = () => {
         </div>
     );
 };
-
 export default PurchaseInvoices;
