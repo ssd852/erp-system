@@ -7,7 +7,7 @@ const Customers = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // التحكم بالشاشة المنبثقة
+    // 🟢 هذا هو السحر اللي بيخلي الزر يشتغل ويفتح الشاشة
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
@@ -38,14 +38,13 @@ const Customers = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // فتح شاشة الإضافة
+    // 🟢 الدالة المربوطة بالزر الأخضر
     const openAddModal = () => {
         setFormData({ name: '', email: '', phone: '', address: '', city: '', balance: 0 });
         setIsEditing(false);
-        setShowModal(true);
+        setShowModal(true); // تفعيل ظهور الشاشة المنبثقة
     };
 
-    // فتح شاشة التعديل
     const openEditModal = (customer) => {
         setFormData({
             name: customer.name, email: customer.email || '', phone: customer.phone || '',
@@ -56,7 +55,6 @@ const Customers = () => {
         setShowModal(true);
     };
 
-    // الحفظ (إضافة أو تعديل)
     const handleSubmit = async (e) => {
         e.preventDefault();
         const { data: userData } = await supabase.auth.getUser();
@@ -67,11 +65,10 @@ const Customers = () => {
         } else {
             await supabase.from('customers').insert([{ ...formData, user_id: userData.user.id }]);
         }
-        setShowModal(false);
+        setShowModal(false); // إغلاق الشاشة بعد الحفظ
         fetchCustomers();
     };
 
-    // الحذف
     const handleDelete = async (id) => {
         if (window.confirm('هل أنت متأكد من حذف هذا العميل؟')) {
             await supabase.from('customers').delete().eq('id', id);
@@ -79,44 +76,43 @@ const Customers = () => {
         }
     };
 
-    // فلترة العملاء حسب البحث
     const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.phone && c.phone.includes(searchTerm))
     );
 
     return (
-        <div className="w-full text-slate-200" dir="rtl">
+        <div className="w-full text-slate-200 p-6" dir="rtl">
 
-            {/* عنوان الصفحة المطابق لتصميمك */}
-            <div className="flex justify-center items-center mb-8 mt-2">
-                <h1 className="text-3xl font-bold text-white tracking-wide">إدارة العملاء</h1>
-            </div>
-
-            {/* الكارد الرئيسي للجدول */}
+            {/* الكارد الرئيسي للجدول (نفس تصميم الفواتير بالضبط) */}
             <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
 
-                {/* شريط الأدوات (زر الإضافة والبحث) - مطابق لصفحة الفواتير */}
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-[#0B1120]/50">
+                {/* شريط الأدوات العلوي: العنوان عاليمين، البحث والزر الأخضر عاليسار */}
+                <div className="p-5 border-b border-slate-800 flex justify-between items-center">
 
-                    {/* زر الإضافة الأخضر */}
-                    <button
-                        onClick={openAddModal}
-                        className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold shadow-lg shadow-green-500/20 z-10"
-                    >
-                        <Plus size={20} /> إضافة عميل
-                    </button>
+                    {/* العنوان (مطابق لمكان كلمة: إدارة المبيعات) */}
+                    <h2 className="text-lg font-bold text-white">إدارة العملاء</h2>
 
-                    {/* مربع البحث */}
-                    <div className="relative w-72">
-                        <input
-                            type="text"
-                            placeholder="بحث..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-[#0F172A] border border-slate-700 rounded-lg py-2.5 px-4 pl-10 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                        />
-                        <Search className="absolute left-3 top-3 text-slate-500" size={18} />
+                    <div className="flex items-center gap-4">
+                        {/* مربع البحث */}
+                        <div className="relative w-64">
+                            <input
+                                type="text"
+                                placeholder="بحث..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-[#0B1120] border border-slate-700 rounded-lg py-2 px-4 pl-10 text-slate-200 focus:border-blue-500 outline-none"
+                            />
+                            <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
+                        </div>
+
+                        {/* 🟢 الزر الأخضر الفخم (نفس تبع الفواتير) */}
+                        <button
+                            onClick={openAddModal}
+                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold"
+                        >
+                            إضافة عميل <Plus size={20} />
+                        </button>
                     </div>
                 </div>
 
@@ -126,21 +122,21 @@ const Customers = () => {
                         <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
                             <tr>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الرقم <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الرقم <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الاسم <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الاسم <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الهاتف <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الهاتف <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">البريد الإلكتروني <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">البريد الإلكتروني <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الرصيد <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الرصيد <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
-                                <th className="p-4 font-semibold text-center">إجراءات</th>
+                                <th className="p-4 font-semibold text-center">الحالة / إجراءات</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/50">
@@ -168,7 +164,7 @@ const Customers = () => {
                 </div>
             </div>
 
-            {/* الشاشة المنبثقة (Modal) للإضافة والتعديل */}
+            {/* 🟢 الشاشة المنبثقة (Modal) اللي رح تفتح لما تكبس عالزر */}
             {showModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -179,4 +175,41 @@ const Customers = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 space
+                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-2">اسم العميل <span className="text-red-500">*</span></label>
+                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">رقم الهاتف</label>
+                                    <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-2">الرصيد الافتتاحي</label>
+                                    <input type="number" step="0.01" name="balance" value={formData.balance} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-2">البريد الإلكتروني</label>
+                                <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                            </div>
+
+                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
+                                    حفظ البيانات
+                                </button>
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+        </div>
+    );
+};
+
+export default Customers;
