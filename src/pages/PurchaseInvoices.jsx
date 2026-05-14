@@ -19,9 +19,11 @@ const PurchaseInvoices = () => {
 
     const fetchData = async () => {
         setLoading(true);
-        const { data } = await supabase.from('purchase_invoices').select('*, suppliers(name)').order('id', { ascending: false });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        const { data } = await supabase.from('purchase_invoices').select('*, suppliers(name)').eq('user_id', user.id).order('id', { ascending: false });
         setItems(data || []);
-        const { data: sData } = await supabase.from('suppliers').select('id, name');
+        const { data: sData } = await supabase.from('suppliers').select('id, name').eq('user_id', user.id);
         setSuppliers(sData || []);
         setLoading(false);
     };
@@ -32,10 +34,45 @@ const PurchaseInvoices = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const payload = { supplier_id: form.supplier_id, invoice_date: form.date||null, total_amount: n(form.total_amount), status: form.status };
-        if (isEditing) await supabase.from('purchase_invoices').update(payload).eq('id', form.id);
-        else await supabase.from('purchase_invoices').insert([payload]);
-        setShowModal(false); fetchData();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error("Auth Error:", authError);
+            alert("Error: User not authenticated.");
+            return;
+        }
+
+        const cleanNum = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g,"")) || 0;
+
+        const payload = {
+            supplier_id: form.supplier_id,
+            invoice_date: form.date || null,
+            total_amount: cleanNum(form.total_amount),
+            status: form.status,
+            user_id: user.id
+        };
+
+        try {
+            let error;
+            if (isEditing) {
+                const { error: updateError } = await supabase.from('purchase_invoices').update(payload).eq('id', form.id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase.from('purchase_invoices').insert([payload]);
+                error = insertError;
+            }
+
+            if (error) {
+                console.error("Detailed Error:", error.message, error.details, error.hint);
+                alert("Error: " + error.message);
+                return;
+            }
+
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Unexpected Error:", err);
+            alert("An unexpected error occurred.");
+        }
     };
 
     const handleDelete = async () => {

@@ -27,12 +27,44 @@ const ChartOfAccounts = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const payload = { account_name: form.account_name, account_type: form.account_type, balance: parseFloat(String(form.balance||0).replace(/[^0-9.-]+/g,''))||0, user_id: user.id };
-        if (isEditing) await supabase.from('chart_of_accounts').update(payload).eq('id', form.id);
-        else await supabase.from('chart_of_accounts').insert([payload]);
-        setShowModal(false); fetchData();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error("Auth Error:", authError);
+            alert("Error: User not authenticated.");
+            return;
+        }
+
+        const cleanNum = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g,"")) || 0;
+
+        const payload = {
+            account_name: form.account_name,
+            account_type: form.account_type,
+            balance: cleanNum(form.balance),
+            user_id: user.id
+        };
+
+        try {
+            let error;
+            if (isEditing) {
+                const { error: updateError } = await supabase.from('chart_of_accounts').update(payload).eq('id', form.id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase.from('chart_of_accounts').insert([payload]);
+                error = insertError;
+            }
+
+            if (error) {
+                console.error("Detailed Error:", error.message, error.details, error.hint);
+                alert("Error: " + error.message);
+                return;
+            }
+
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Unexpected Error:", err);
+            alert("An unexpected error occurred.");
+        }
     };
 
     const handleDelete = async () => {

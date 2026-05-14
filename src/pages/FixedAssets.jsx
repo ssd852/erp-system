@@ -29,12 +29,48 @@ const FixedAssets = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const payload = { asset_name: form.asset_name, purchase_date: form.purchase_date||null, value: n(form.value), salvage_value: n(form.salvage_value), useful_life_years: n(form.useful_life_years), depreciation_method: form.depreciation_method, depreciation_rate: n(form.depreciation_rate), user_id: user.id };
-        if (isEditing) await supabase.from('fixed_assets').update(payload).eq('id', form.id);
-        else await supabase.from('fixed_assets').insert([payload]);
-        setShowModal(false); fetchData();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error("Auth Error:", authError);
+            alert("Error: User not authenticated.");
+            return;
+        }
+
+        const cleanNum = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g,"")) || 0;
+
+        const payload = {
+            asset_name: form.asset_name,
+            purchase_date: form.purchase_date || null,
+            value: cleanNum(form.value),
+            salvage_value: cleanNum(form.salvage_value),
+            useful_life_years: cleanNum(form.useful_life_years),
+            depreciation_method: form.depreciation_method,
+            depreciation_rate: cleanNum(form.depreciation_rate),
+            user_id: user.id
+        };
+
+        try {
+            let error;
+            if (isEditing) {
+                const { error: updateError } = await supabase.from('fixed_assets').update(payload).eq('id', form.id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase.from('fixed_assets').insert([payload]);
+                error = insertError;
+            }
+
+            if (error) {
+                console.error("Detailed Error:", error.message, error.details, error.hint);
+                alert("Error: " + error.message);
+                return;
+            }
+
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Unexpected Error:", err);
+            alert("An unexpected error occurred.");
+        }
     };
 
     const handleDelete = async () => {

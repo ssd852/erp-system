@@ -29,12 +29,48 @@ const Inventory = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const payload = { name: form.name, sku: form.sku, category: form.category, price: n(form.price), stock: n(form.stock), unit: form.unit, reorder_level: n(form.reorder_level), user_id: user.id };
-        if (isEditing) await supabase.from('inventory').update(payload).eq('id', form.id);
-        else await supabase.from('inventory').insert([payload]);
-        setShowModal(false); fetchData();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error("Auth Error:", authError);
+            alert("Error: User not authenticated.");
+            return;
+        }
+
+        const cleanNum = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g,"")) || 0;
+
+        const payload = {
+            name: form.name,
+            sku: form.sku,
+            category: form.category,
+            price: cleanNum(form.price),
+            stock: cleanNum(form.stock),
+            unit: form.unit,
+            reorder_level: cleanNum(form.reorder_level),
+            user_id: user.id
+        };
+
+        try {
+            let error;
+            if (isEditing) {
+                const { error: updateError } = await supabase.from('inventory').update(payload).eq('id', form.id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase.from('inventory').insert([payload]);
+                error = insertError;
+            }
+
+            if (error) {
+                console.error("Detailed Error:", error.message, error.details, error.hint);
+                alert("Error: " + error.message);
+                return;
+            }
+
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Unexpected Error:", err);
+            alert("An unexpected error occurred.");
+        }
     };
 
     const handleDelete = async () => {

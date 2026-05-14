@@ -14,7 +14,9 @@ const Suppliers = () => {
 
     const fetchData = async () => {
         setLoading(true);
-        const { data } = await supabase.from('suppliers').select('*').order('id', { ascending: false });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        const { data } = await supabase.from('suppliers').select('*').eq('user_id', user.id).order('id', { ascending: false });
         setItems(data || []);
         setLoading(false);
     };
@@ -25,10 +27,43 @@ const Suppliers = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const payload = { name: form.name, contact_person: form.contact_person, phone: form.phone, email: form.email };
-        if (isEditing) await supabase.from('suppliers').update(payload).eq('id', form.id);
-        else await supabase.from('suppliers').insert([payload]);
-        setShowModal(false); fetchData();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error("Auth Error:", authError);
+            alert("Error: User not authenticated.");
+            return;
+        }
+
+        const payload = {
+            name: form.name,
+            contact_person: form.contact_person,
+            phone: form.phone,
+            email: form.email,
+            user_id: user.id
+        };
+
+        try {
+            let error;
+            if (isEditing) {
+                const { error: updateError } = await supabase.from('suppliers').update(payload).eq('id', form.id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase.from('suppliers').insert([payload]);
+                error = insertError;
+            }
+
+            if (error) {
+                console.error("Detailed Error:", error.message, error.details, error.hint);
+                alert("Error: " + error.message);
+                return;
+            }
+
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Unexpected Error:", err);
+            alert("An unexpected error occurred.");
+        }
     };
 
     const handleDelete = async () => {

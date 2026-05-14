@@ -27,12 +27,45 @@ const Employees = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const payload = { full_name: form.full_name, position: form.position, salary: parseFloat(String(form.salary||0).replace(/[^0-9.-]+/g,''))||0, hire_date: form.hire_date||null, user_id: user.id };
-        if (isEditing) await supabase.from('employees').update(payload).eq('id', form.id);
-        else await supabase.from('employees').insert([payload]);
-        setShowModal(false); fetchData();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error("Auth Error:", authError);
+            alert("Error: User not authenticated.");
+            return;
+        }
+
+        const cleanNum = (val) => parseFloat(String(val).replace(/[^0-9.-]+/g,"")) || 0;
+
+        const payload = {
+            full_name: form.full_name,
+            position: form.position,
+            salary: cleanNum(form.salary),
+            hire_date: form.hire_date || null,
+            user_id: user.id
+        };
+
+        try {
+            let error;
+            if (isEditing) {
+                const { error: updateError } = await supabase.from('employees').update(payload).eq('id', form.id);
+                error = updateError;
+            } else {
+                const { error: insertError } = await supabase.from('employees').insert([payload]);
+                error = insertError;
+            }
+
+            if (error) {
+                console.error("Detailed Error:", error.message, error.details, error.hint);
+                alert("Error: " + error.message);
+                return;
+            }
+
+            setShowModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Unexpected Error:", err);
+            alert("An unexpected error occurred.");
+        }
     };
 
     const handleDelete = async () => {
