@@ -30,7 +30,9 @@ const Employees = () => {
         setLoading(false);
     };
 
-    useEffect(() => { fetchEmployees(); }, []);
+    useEffect(() => {
+        fetchEmployees();
+    }, []);
 
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -46,8 +48,10 @@ const Employees = () => {
     // فتح شاشة التعديل
     const openEditModal = (emp) => {
         setFormData({
-            full_name: emp.full_name, position: emp.position || '',
-            salary: emp.salary || 0, hire_date: emp.hire_date || ''
+            full_name: emp.full_name,
+            position: emp.position || '',
+            salary: emp.salary || 0,
+            hire_date: emp.hire_date || ''
         });
         setEditId(emp.id);
         setIsEditing(true);
@@ -77,44 +81,42 @@ const Employees = () => {
         }
     };
 
-    // فلترة الموظفين حسب البحث
     const filteredEmployees = employees.filter(e =>
         e.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (e.position && e.position.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
-        <div className="w-full text-slate-200" dir="rtl">
-
-            {/* عنوان الصفحة */}
-            <div className="flex justify-center items-center mb-8 mt-2">
-                <h1 className="text-3xl font-bold text-white tracking-wide">إدارة الموظفين</h1>
-            </div>
+        <div className="w-full text-slate-200 p-6" dir="rtl">
 
             {/* الكارد الرئيسي للجدول */}
             <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
 
-                {/* شريط الأدوات */}
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-[#0B1120]/50">
+                {/* شريط الأدوات العلوي */}
+                <div className="p-5 border-b border-slate-800 flex justify-between items-center">
 
-                    {/* زر الإضافة الأخضر */}
-                    <button
-                        onClick={openAddModal}
-                        className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold shadow-lg shadow-green-500/20 z-10"
-                    >
-                        <Plus size={20} /> إضافة موظف
-                    </button>
+                    <h2 className="text-lg font-bold text-white">إدارة الموظفين</h2>
 
-                    {/* مربع البحث */}
-                    <div className="relative w-72">
-                        <input
-                            type="text"
-                            placeholder="بحث..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-[#0F172A] border border-slate-700 rounded-lg py-2.5 px-4 pl-10 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                        />
-                        <Search className="absolute left-3 top-3 text-slate-500" size={18} />
+                    <div className="flex items-center gap-4">
+                        {/* مربع البحث */}
+                        <div className="relative w-64">
+                            <input
+                                type="text"
+                                placeholder="بحث..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-[#0B1120] border border-slate-700 rounded-lg py-2 px-4 pl-10 text-slate-200 focus:border-blue-500 outline-none"
+                            />
+                            <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
+                        </div>
+
+                        {/* الزر الأخضر */}
+                        <button
+                            onClick={openAddModal}
+                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold"
+                        >
+                            إضافة موظف <Plus size={20} />
+                        </button>
                     </div>
                 </div>
 
@@ -124,19 +126,19 @@ const Employees = () => {
                         <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
                             <tr>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الرقم <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الرقم <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الاسم الكامل <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الاسم الكامل <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">المنصب <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">المنصب <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">الراتب <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">الراتب <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold whitespace-nowrap">
-                                    <div className="flex items-center gap-2 justify-end">تاريخ التعيين <ArrowUpDown size={14} className="text-slate-500" /></div>
+                                    <div className="flex items-center gap-2 justify-start">تاريخ التعيين <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
                                 <th className="p-4 font-semibold text-center">إجراءات</th>
                             </tr>
@@ -166,7 +168,7 @@ const Employees = () => {
                 </div>
             </div>
 
-            {/* الشاشة المنبثقة (Modal) للإضافة والتعديل */}
+            {/* الشاشة المنبثقة (Modal) */}
             {showModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -177,36 +179,31 @@ const Employees = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">الاسم الكامل <span className="text-red-500">*</span></label>
-                                <input type="text" name="full_name" value={formData.full_name} onChange={handleInputChange} required
-                                    className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                                <label className="block text-sm text-slate-400 mb-2">الاسم الكامل <span className="text-red-500">*</span></label>
+                                <input type="text" name="full_name" value={formData.full_name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1">المنصب</label>
-                                    <input type="text" name="position" value={formData.position} onChange={handleInputChange}
-                                        className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                                    <label className="block text-sm text-slate-400 mb-2">المنصب</label>
+                                    <input type="text" name="position" value={formData.position} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1">الراتب الأساسي</label>
-                                    <input type="number" step="0.01" name="salary" value={formData.salary} onChange={handleInputChange}
-                                        className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono" />
+                                    <label className="block text-sm text-slate-400 mb-2">الراتب الأساسي</label>
+                                    <input type="number" step="0.01" name="salary" value={formData.salary} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">تاريخ التعيين</label>
-                                <input type="date" name="hire_date" value={formData.hire_date} onChange={handleInputChange}
-                                    className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                                <label className="block text-sm text-slate-400 mb-2">تاريخ التعيين</label>
+                                <input type="date" name="hire_date" value={formData.hire_date} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
                             </div>
-                            <div className="pt-2 flex gap-3">
-                                <button type="submit"
-                                    className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-green-500/20">
-                                    {isEditing ? 'حفظ التعديلات' : 'إضافة الموظف'}
+
+                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
+                                    حفظ البيانات
                                 </button>
-                                <button type="button" onClick={() => setShowModal(false)}
-                                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
                                     إلغاء
                                 </button>
                             </div>
@@ -214,6 +211,7 @@ const Employees = () => {
                     </div>
                 </div>
             )}
+
         </div>
     );
 };
