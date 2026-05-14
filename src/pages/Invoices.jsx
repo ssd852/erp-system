@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { Plus, Edit, Trash2, X, Search, ArrowUpDown } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Search } from 'lucide-react';
 
 const Invoices = () => {
     const [items, setItems] = useState([]);
@@ -9,84 +9,49 @@ const Invoices = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
-
-    const [formData, setFormData] = useState({
-        customer_id: '', date: '', total_amount: 0, status: 'Pending', tax_rate: 0, due_date: '', amount_paid: 0
-    });
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState({ customer_id: '', date: '', due_date: '', total_amount: 0, tax_rate: 0, amount_paid: 0, status: 'Pending' });
 
     const fetchData = async () => {
         setLoading(true);
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData?.user) return;
-
-        const { data, error } = await supabase
-            .from('invoices')
-            .select('*, customers(name)')
-            .eq('user_id', userData.user.id)
-            .order('id', { ascending: false });
-
-        if (!error) setItems(data || []);
-
-        const { data: custData } = await supabase.from('customers').select('id, name');
-        if (custData) setCustomers(custData);
-
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        const { data } = await supabase.from('invoices').select('*, customers(name)').eq('user_id', user.id).order('id', { ascending: false });
+        setItems(data || []);
+        const { data: cData } = await supabase.from('customers').select('id, name').eq('user_id', user.id);
+        setCustomers(cData || []);
         setLoading(false);
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const openAddModal = () => {
-        setFormData({ customer_id: '', date: new Date().toISOString().split('T')[0], total_amount: 0, status: 'Pending', tax_rate: 0, due_date: '', amount_paid: 0 });
+    const openAdd = () => {
+        setFormData({ customer_id: '', date: new Date().toISOString().split('T')[0], due_date: '', total_amount: 0, tax_rate: 0, amount_paid: 0, status: 'Pending' });
         setIsEditing(false);
         setShowModal(true);
     };
 
-    const openEditModal = (item) => {
-        setFormData({
-            customer_id: item.customer_id || '',
-            date: item.date || item.invoice_date || '',
-            total_amount: item.total_amount || 0,
-            status: item.status || 'Pending',
-            tax_rate: item.tax_rate || 0,
-            due_date: item.due_date || '',
-            amount_paid: item.amount_paid || 0
-        });
+    const openEdit = (item) => {
+        setFormData({ id: item.id, customer_id: item.customer_id || '', date: item.invoice_date || item.date || '', due_date: item.due_date || '', total_amount: item.total_amount || 0, tax_rate: item.tax_rate || 0, amount_paid: item.amount_paid || 0, status: item.status || 'Pending' });
         setIsEditing(true);
-        setFormData(prev => ({...prev, id: item.id}));
         setShowModal(true);
-    };
-
-    const confirmDelete = (item) => {
-        setItemToDelete(item);
-        setDeleteDialogVisible(true);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.customer_id) return;
-
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData?.user) return;
-
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
         const payload = {
             customer_id: formData.customer_id,
-            invoice_date: formData.date ? new Date(formData.date).toISOString().split('T')[0] : null,
-            total_amount: parseFloat(String(formData.total_amount || 0).replace(/[^0-9.-]+/g, "")),
-            status: formData.status || 'Pending',
-            tax_rate: parseFloat(String(formData.tax_rate || 0).replace(/[^0-9.-]+/g, "")),
-            due_date: formData.due_date ? new Date(formData.due_date).toISOString().split('T')[0] : null,
-            amount_paid: parseFloat(String(formData.amount_paid || 0).replace(/[^0-9.-]+/g, "")),
-            user_id: userData.user.id
+            invoice_date: formData.date || null,
+            due_date: formData.due_date || null,
+            total_amount: parseFloat(String(formData.total_amount || 0).replace(/[^0-9.-]+/g, '')) || 0,
+            tax_rate: parseFloat(String(formData.tax_rate || 0).replace(/[^0-9.-]+/g, '')) || 0,
+            amount_paid: parseFloat(String(formData.amount_paid || 0).replace(/[^0-9.-]+/g, '')) || 0,
+            status: formData.status,
+            user_id: user.id
         };
-
         if (isEditing) {
             await supabase.from('invoices').update(payload).eq('id', formData.id);
         } else {
@@ -104,171 +69,138 @@ const Invoices = () => {
         fetchData();
     };
 
-    const filteredItems = items.filter(i =>
-        (i.customers?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (i.id && String(i.id).includes(searchTerm))
+    const filtered = items.filter(i =>
+        (i.customers?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(i.id || '').includes(searchTerm)
     );
 
+    const statusBadge = (s) => {
+        if (s === 'Paid') return 'bg-emerald-500/15 text-emerald-400';
+        if (s === 'Overdue') return 'bg-red-500/15 text-red-400';
+        return 'bg-yellow-500/15 text-yellow-400';
+    };
+    const statusLabel = (s) => s === 'Paid' ? 'مدفوع' : s === 'Overdue' ? 'متأخر' : 'معلق';
+
     return (
-        <div className="w-full text-slate-200 p-6 page-fade-in" dir="rtl">
-            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
-                
-                {/* Header Layout */}
-                <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-[#0B1120]/50">
-                    <div className="flex items-center gap-4">
-                        <div className="relative w-64">
-                            <input
-                                type="text"
-                                placeholder="بحث..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-[#0F172A] border border-slate-700 rounded-lg py-2.5 px-4 pl-10 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                            />
-                            <Search className="absolute left-3 top-3 text-slate-500" size={18} />
-                        </div>
-
-                        <button
-                            onClick={openAddModal}
-                            className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold shadow-lg shadow-green-500/20"
-                        >
-                            <Plus size={20} /> إصدار فاتورة
+        <div className="p-6 w-full" dir="rtl">
+            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+                <div className="flex items-center justify-between p-5 border-b border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <button onClick={openAdd} className="flex items-center gap-2 bg-[#22C55E] hover:bg-green-600 text-white font-bold px-4 py-2.5 rounded-lg transition-colors">
+                            <Plus size={18} /> إصدار فاتورة
                         </button>
+                        <div className="relative">
+                            <input type="text" placeholder="بحث..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                                className="bg-slate-800 border border-slate-700 text-white rounded-lg py-2.5 px-4 pl-10 w-60 outline-none focus:border-blue-500" />
+                            <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+                        </div>
                     </div>
-                    <h2 className="text-xl font-bold text-white tracking-wide">إدارة الفواتير</h2>
+                    <h2 className="text-xl font-bold text-white">إدارة الفواتير</h2>
                 </div>
-
-                <div className="w-full overflow-x-auto">
-                    <table className="w-full text-right text-sm">
-                        <thead className="bg-[#0F172A] text-slate-300 border-b border-slate-800">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-right">
+                        <thead className="bg-slate-800/50 text-slate-400 border-b border-slate-800">
                             <tr>
-                                <th className="p-4 font-semibold whitespace-nowrap">الرقم</th>
-                                <th className="p-4 font-semibold whitespace-nowrap">العميل</th>
-                                <th className="p-4 font-semibold whitespace-nowrap">تاريخ الفاتورة</th>
-                                <th className="p-4 font-semibold whitespace-nowrap">الإجمالي</th>
-                                <th className="p-4 font-semibold whitespace-nowrap">المدفوع</th>
-                                <th className="p-4 font-semibold whitespace-nowrap">الحالة</th>
-                                <th className="p-4 font-semibold text-center whitespace-nowrap">إجراءات</th>
+                                <th className="p-4">#</th><th className="p-4">العميل</th><th className="p-4">التاريخ</th>
+                                <th className="p-4">الإجمالي</th><th className="p-4">المدفوع</th><th className="p-4">الحالة</th><th className="p-4 text-center">إجراءات</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/50">
-                            {loading ? (
-                                <tr><td colSpan="7" className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
-                            ) : filteredItems.length === 0 ? (
-                                <tr><td colSpan="7" className="p-8 text-center text-slate-500">لا يوجد فواتير.</td></tr>
-                            ) : (
-                                filteredItems.map((item, index) => (
-                                    <tr key={item.id} className="hover:bg-[#1E293B]/50 transition-colors">
-                                        <td className="p-4 text-slate-400 font-mono">{item.id}</td>
-                                        <td className="p-4 font-bold text-white">{item.customers?.name || '-'}</td>
-                                        <td className="p-4 text-slate-300">{item.invoice_date || item.date || '-'}</td>
-                                        <td className="p-4 text-emerald-400 font-mono font-bold">${Number(item.total_amount || 0).toLocaleString()}</td>
-                                        <td className="p-4 text-blue-400 font-mono font-bold">${Number(item.amount_paid || 0).toLocaleString()}</td>
-                                        <td className="p-4">
-                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                item.status === 'Paid' ? 'bg-green-500/20 text-green-400' :
-                                                item.status === 'Overdue' ? 'bg-red-500/20 text-red-400' :
-                                                'bg-yellow-500/20 text-yellow-400'
-                                            }`}>
-                                                {item.status === 'Paid' ? 'مدفوع' : item.status === 'Overdue' ? 'متأخر' : 'معلق'}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 flex justify-center gap-3">
-                                            <button onClick={() => openEditModal(item)} className="text-blue-400 hover:text-blue-300 transition-colors"><Edit size={18} /></button>
-                                            <button onClick={() => confirmDelete(item)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 size={18} /></button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
+                        <tbody className="divide-y divide-slate-800">
+                            {loading ? <tr><td colSpan={7} className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
+                            : filtered.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-slate-500">لا توجد فواتير.</td></tr>
+                            : filtered.map((item, idx) => (
+                                <tr key={item.id} className="hover:bg-slate-800/40 transition-colors text-slate-300">
+                                    <td className="p-4 text-slate-500">{item.id}</td>
+                                    <td className="p-4 font-semibold text-white">{item.customers?.name || '-'}</td>
+                                    <td className="p-4">{item.invoice_date || item.date || '-'}</td>
+                                    <td className="p-4 text-emerald-400 font-mono">${Number(item.total_amount || 0).toLocaleString()}</td>
+                                    <td className="p-4 text-blue-400 font-mono">${Number(item.amount_paid || 0).toLocaleString()}</td>
+                                    <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusBadge(item.status)}`}>{statusLabel(item.status)}</span></td>
+                                    <td className="p-4"><div className="flex gap-2 justify-center">
+                                        <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Edit size={16} /></button>
+                                        <button onClick={() => { setItemToDelete(item); setDeleteDialogVisible(true); }} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20"><Trash2 size={16} /></button>
+                                    </div></td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Main Form Modal */}
             {showModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-                        <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-[#0B1120]">
-                            <h2 className="text-xl font-bold text-white">{isEditing ? 'تعديل الفاتورة' : 'إصدار فاتورة'}</h2>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg">
-                                <X size={20} />
-                            </button>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl max-h-screen overflow-y-auto">
+                        <div className="flex items-center justify-between p-5 border-b border-slate-800">
+                            <h3 className="text-lg font-bold text-white">{isEditing ? 'تعديل الفاتورة' : 'إصدار فاتورة جديدة'}</h3>
+                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><X size={20} /></button>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        <form onSubmit={handleSubmit} className="p-5 space-y-4">
                             <div>
-                                <label className="block text-sm text-slate-400 mb-2">العميل <span className="text-red-500">*</span></label>
-                                <select name="customer_id" value={formData.customer_id} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none appearance-none">
+                                <label className="block text-sm text-slate-400 mb-1.5">العميل *</label>
+                                <select required value={formData.customer_id} onChange={e => setFormData({ ...formData, customer_id: e.target.value })}
+                                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 appearance-none">
                                     <option value="">اختر العميل...</option>
-                                    {customers.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
+                                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-2">تاريخ الفاتورة</label>
-                                    <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
+                                    <label className="block text-sm text-slate-400 mb-1.5">تاريخ الفاتورة</label>
+                                    <input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-2">تاريخ الاستحقاق</label>
-                                    <input type="date" name="due_date" value={formData.due_date} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-2">الإجمالي</label>
-                                    <input type="text" name="total_amount" value={formData.total_amount} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-2">المدفوع</label>
-                                    <input type="text" name="amount_paid" value={formData.amount_paid} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                    <label className="block text-sm text-slate-400 mb-1.5">تاريخ الاستحقاق</label>
+                                    <input type="date" value={formData.due_date} onChange={e => setFormData({ ...formData, due_date: e.target.value })}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-2">الضريبة (%)</label>
-                                    <input type="text" name="tax_rate" value={formData.tax_rate} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none dir-ltr text-left" />
+                                    <label className="block text-sm text-slate-400 mb-1.5">الإجمالي</label>
+                                    <input type="text" value={formData.total_amount} onChange={e => setFormData({ ...formData, total_amount: e.target.value })}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-2">الحالة</label>
-                                    <select name="status" value={formData.status} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none appearance-none">
+                                    <label className="block text-sm text-slate-400 mb-1.5">المدفوع</label>
+                                    <input type="text" value={formData.amount_paid} onChange={e => setFormData({ ...formData, amount_paid: e.target.value })}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1.5">نسبة الضريبة (%)</label>
+                                    <input type="text" value={formData.tax_rate} onChange={e => setFormData({ ...formData, tax_rate: e.target.value })}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1.5">الحالة</label>
+                                    <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}
+                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 appearance-none">
                                         <option value="Pending">معلق</option>
                                         <option value="Paid">مدفوع</option>
                                         <option value="Overdue">متأخر</option>
                                     </select>
                                 </div>
                             </div>
-                            <div className="pt-4 flex gap-3 border-t border-slate-800 mt-6">
-                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">
-                                    حفظ
-                                </button>
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
-                                    إلغاء
-                                </button>
+                            <div className="flex gap-3 pt-2">
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-green-600 text-white font-bold py-3 rounded-lg">حفظ</button>
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg border border-slate-700">إلغاء</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* Delete Confirmation Modal */}
             {deleteDialogVisible && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="p-6 text-center">
-                            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                                <Trash2 size={32} className="text-red-500" />
-                            </div>
-                            <h3 className="text-xl font-bold text-white mb-2">تأكيد الحذف</h3>
-                            <p className="text-slate-400 mb-6">هل أنت متأكد من حذف هذه الفاتورة؟ لا يمكن التراجع عن هذه العملية.</p>
-                            <div className="flex gap-3">
-                                <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
-                                    نعم، احذف
-                                </button>
-                                <button onClick={() => setDeleteDialogVisible(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition-colors border border-slate-700">
-                                    إلغاء
-                                </button>
-                            </div>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-sm shadow-2xl p-6 text-center">
+                        <div className="w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mx-auto mb-4"><Trash2 size={28} className="text-red-400" /></div>
+                        <h3 className="text-lg font-bold text-white mb-2">تأكيد الحذف</h3>
+                        <p className="text-slate-400 mb-6 text-sm">هل أنت متأكد من حذف هذه الفاتورة؟</p>
+                        <div className="flex gap-3">
+                            <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg">حذف</button>
+                            <button onClick={() => setDeleteDialogVisible(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-lg border border-slate-700">إلغاء</button>
                         </div>
                     </div>
                 </div>
