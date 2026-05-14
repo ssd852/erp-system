@@ -7,7 +7,7 @@ const Customers = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // 🟢 هذا هو السحر اللي بيخلي الزر يشتغل ويفتح الشاشة
+    // التحكم بالشاشة المنبثقة
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
@@ -38,13 +38,14 @@ const Customers = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // 🟢 الدالة المربوطة بالزر الأخضر
+    // فتح شاشة الإضافة
     const openAddModal = () => {
         setFormData({ name: '', email: '', phone: '', address: '', city: '', balance: 0 });
         setIsEditing(false);
-        setShowModal(true); // تفعيل ظهور الشاشة المنبثقة
+        setShowModal(true);
     };
 
+    // فتح شاشة التعديل
     const openEditModal = (customer) => {
         setFormData({
             name: customer.name, email: customer.email || '', phone: customer.phone || '',
@@ -55,6 +56,7 @@ const Customers = () => {
         setShowModal(true);
     };
 
+    // الحفظ (إضافة أو تعديل)
     const handleSubmit = async (e) => {
         e.preventDefault();
         const { data: userData } = await supabase.auth.getUser();
@@ -65,10 +67,11 @@ const Customers = () => {
         } else {
             await supabase.from('customers').insert([{ ...formData, user_id: userData.user.id }]);
         }
-        setShowModal(false); // إغلاق الشاشة بعد الحفظ
+        setShowModal(false);
         fetchCustomers();
     };
 
+    // الحذف
     const handleDelete = async (id) => {
         if (window.confirm('هل أنت متأكد من حذف هذا العميل؟')) {
             await supabase.from('customers').delete().eq('id', id);
@@ -84,13 +87,12 @@ const Customers = () => {
     return (
         <div className="w-full text-slate-200 p-6" dir="rtl">
 
-            {/* الكارد الرئيسي للجدول (نفس تصميم الفواتير بالضبط) */}
+            {/* الكارد الرئيسي للجدول */}
             <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl w-full">
 
-                {/* شريط الأدوات العلوي: العنوان عاليمين، البحث والزر الأخضر عاليسار */}
+                {/* شريط الأدوات العلوي */}
                 <div className="p-5 border-b border-slate-800 flex justify-between items-center">
 
-                    {/* العنوان (مطابق لمكان كلمة: إدارة المبيعات) */}
                     <h2 className="text-lg font-bold text-white">إدارة العملاء</h2>
 
                     <div className="flex items-center gap-4">
@@ -106,7 +108,7 @@ const Customers = () => {
                             <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
                         </div>
 
-                        {/* 🟢 الزر الأخضر الفخم (نفس تبع الفواتير) */}
+                        {/* الزر الأخضر */}
                         <button
                             onClick={openAddModal}
                             className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2 font-bold"
@@ -136,7 +138,7 @@ const Customers = () => {
                                 <th className="p-4 font-semibold whitespace-nowrap">
                                     <div className="flex items-center gap-2 justify-start">الرصيد <ArrowUpDown size={14} className="text-slate-500" /></div>
                                 </th>
-                                <th className="p-4 font-semibold text-center">الحالة / إجراءات</th>
+                                <th className="p-4 font-semibold text-center">إجراءات</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/50">
@@ -164,7 +166,7 @@ const Customers = () => {
                 </div>
             </div>
 
-            {/* 🟢 الشاشة المنبثقة (Modal) اللي رح تفتح لما تكبس عالزر */}
+            {/* الشاشة المنبثقة (Modal) */}
             {showModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
