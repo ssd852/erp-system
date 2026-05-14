@@ -15,6 +15,7 @@ const Payroll = () => {
     const [loading, setLoading] = useState(true);
     const [globalFilter, setGlobalFilter] = useState('');
     const [dialogVisible, setDialogVisible] = useState(false);
+    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
     const [currentItem, setCurrentItem] = useState({ employee_id: null, month: '', basic_salary: 0, deductions: 0, allowances: 0, net_salary: 0 });
     const [isEdit, setIsEdit] = useState(false);
 

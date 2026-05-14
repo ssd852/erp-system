@@ -15,6 +15,7 @@ const Invoices = () => {
     const [loading, setLoading] = useState(true);
     const [globalFilter, setGlobalFilter] = useState('');
     const [dialogVisible, setDialogVisible] = useState(false);
+    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
     const [currentItem, setCurrentItem] = useState({ customer_id: null, date: '', total_amount: 0, status: 'Pending', tax_rate: 0, due_date: '', amount_paid: 0 });
     const [isEdit, setIsEdit] = useState(false);
 
