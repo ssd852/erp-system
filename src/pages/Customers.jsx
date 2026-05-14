@@ -1,39 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { supabase } from '../config/supabaseClient';
-import { useToast } from '../context/ToastContext';
-import { Plus, Edit2, Trash2, Search, X } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { Users, Plus, Edit, Trash2, X, RefreshCw } from 'lucide-react';
 
 const Customers = () => {
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [currentCustomer, setCurrentCustomer] = useState({ id: null, name: '', email: '', phone: '' });
-    const [isEdit, setIsEdit] = useState(false);
-    const { showToast } = useToast();
+    const [showModal, setShowModal] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState(null);
+
+    const [formData, setFormData] = useState({
+        name: '', email: '', phone: '', address: '', city: '', balance: 0
+    });
 
     const fetchCustomers = async () => {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            showToast('error', 'خطأ', 'الرجاء تسجيل الدخول أولاً');
-            setLoading(false);
-            return;
-        }
-
-        const { data, error } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('id', { ascending: true });
-
-        if (error) {
-            console.error('Error fetching customers:', error);
-            showToast('error', 'خطأ', 'فشل جلب بيانات العملاء');
-        } else {
-            setCustomers(data || []);
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+            const { data, error } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('user_id', userData.user.id)
+                .order('created_at', { ascending: false });
+            if (!error) setCustomers(data);
         }
         setLoading(false);
     };
@@ -42,222 +31,158 @@ const Customers = () => {
         fetchCustomers();
     }, []);
 
-    const filteredCustomers = customers.filter(cust => 
-        (cust.name && cust.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (cust.email && cust.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (cust.phone && cust.phone.includes(searchQuery))
-    );
-
-    const openNew = () => {
-        setCurrentCustomer({ id: null, name: '', email: '', phone: '' });
-        setIsEdit(false);
-        setIsModalOpen(true);
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const editCustomer = (customer) => {
-        setCurrentCustomer({ ...customer });
-        setIsEdit(true);
-        setIsModalOpen(true);
+    const openAddModal = () => {
+        setFormData({ name: '', email: '', phone: '', address: '', city: '', balance: 0 });
+        setIsEditing(false);
+        setShowModal(true);
     };
 
-    const confirmDelete = (customer) => {
-        setCurrentCustomer(customer);
-        setIsDeleteModalOpen(true);
+    const openEditModal = (customer) => {
+        setFormData({
+            name: customer.name, email: customer.email || '', phone: customer.phone || '',
+            address: customer.address || '', city: customer.city || '', balance: customer.balance
+        });
+        setEditId(customer.id);
+        setIsEditing(true);
+        setShowModal(true);
     };
 
-    const saveCustomer = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!currentCustomer.name?.trim()) {
-            showToast('warn', 'تحذير', 'اسم العميل مطلوب');
-            return;
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) return;
+
+        if (isEditing) {
+            await supabase.from('customers').update(formData).eq('id', editId);
+        } else {
+            await supabase.from('customers').insert([{ ...formData, user_id: userData.user.id }]);
         }
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const payload = {
-                name: currentCustomer.name,
-                email: currentCustomer.email,
-                phone: currentCustomer.phone,
-                user_id: user.id
-            };
-
-            if (isEdit) {
-                const { error } = await supabase.from('customers').update(payload).eq('id', currentCustomer.id);
-                if (error) throw error;
-                showToast('success', 'نجاح', 'تم تحديث بيانات العميل');
-            } else {
-                const { error } = await supabase.from('customers').insert([payload]);
-                if (error) throw error;
-                showToast('success', 'نجاح', 'تم إضافة عميل جديد');
-            }
-            
-            setIsModalOpen(false);
-            fetchCustomers();
-        } catch (error) {
-            console.error('Save error:', error);
-            showToast('error', 'خطأ', 'فشل في حفظ البيانات');
-        }
+        setShowModal(false);
+        fetchCustomers();
     };
 
-    const deleteCustomer = async () => {
-        try {
-            const { error } = await supabase.from('customers').delete().eq('id', currentCustomer.id);
-            if (error) throw error;
-            showToast('success', 'نجاح', 'تم حذف العميل بنجاح');
-            setIsDeleteModalOpen(false);
+    const handleDelete = async (id) => {
+        if (window.confirm('هل أنت متأكد من حذف هذا العميل؟')) {
+            await supabase.from('customers').delete().eq('id', id);
             fetchCustomers();
-        } catch (error) {
-            console.error('Delete error:', error);
-            showToast('error', 'خطأ', 'فشل عملية الحذف');
         }
     };
-
-    const modalContent = isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4" dir="rtl">
-            <div className="bg-slate-800 p-6 rounded-xl w-full max-w-lg border border-slate-700 shadow-2xl">
-                <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
-                    <h2 className="text-xl font-bold text-white">{isEdit ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</h2>
-                    <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
-                        <X className="w-6 h-6" />
-                    </button>
-                </div>
-                <form onSubmit={saveCustomer} className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-slate-300">الاسم</label>
-                            <input 
-                                type="text" 
-                                required
-                                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                value={currentCustomer.name}
-                                onChange={e => setCurrentCustomer({...currentCustomer, name: e.target.value})}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-slate-300">الهاتف</label>
-                            <input 
-                                type="text" 
-                                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                value={currentCustomer.phone}
-                                onChange={e => setCurrentCustomer({...currentCustomer, phone: e.target.value})}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-slate-300">البريد الإلكتروني</label>
-                            <input 
-                                type="email" 
-                                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                                value={currentCustomer.email}
-                                onChange={e => setCurrentCustomer({...currentCustomer, email: e.target.value})}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-3 pt-6 border-t border-slate-700 mt-6">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors">إلغاء</button>
-                        <button type="submit" className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium">حفظ</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-
-    const deleteModalContent = isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4" dir="rtl">
-            <div className="bg-slate-800 p-6 rounded-xl w-full max-w-sm border border-slate-700 shadow-2xl">
-                <div className="text-center space-y-4 mb-6">
-                    <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Trash2 className="w-8 h-8" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white">تأكيد الحذف</h3>
-                    <p className="text-slate-300">هل أنت متأكد من حذف العميل <b>{currentCustomer.name}</b>؟</p>
-                </div>
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-                    <button onClick={() => setIsDeleteModalOpen(false)} className="px-5 py-2.5 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors">إلغاء</button>
-                    <button onClick={deleteCustomer} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-medium">حذف</button>
-                </div>
-            </div>
-        </div>
-    );
 
     return (
-        <div className="p-6 space-y-6 w-full min-h-screen text-slate-200" dir="rtl">
-            {/* Top Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <h1 className="text-2xl font-bold text-white">إدارة العملاء</h1>
-                <div className="flex items-center gap-4 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-64">
-                        <input 
-                            type="text" 
-                            placeholder="ابحث..." 
-                            className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        <Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
+        <div className="min-h-screen bg-[#0B1120] text-slate-200 p-8" dir="rtl">
+            <div className="max-w-7xl mx-auto space-y-6">
+
+                {/* الترويسة */}
+                <div className="flex justify-between items-center bg-[#0F172A] p-6 rounded-2xl shadow-lg border border-slate-800">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center">
+                            <Users size={28} />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-white">إدارة العملاء</h1>
+                        </div>
                     </div>
-                    <button 
-                        onClick={openNew}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap font-medium"
-                    >
-                        <Plus className="w-5 h-5" />
-                        إضافة عميل
-                    </button>
+                    <div className="flex gap-3">
+                        <button onClick={fetchCustomers} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors">
+                            <RefreshCw size={20} className={loading ? "animate-spin text-blue-400" : "text-slate-300"} />
+                        </button>
+                        <button onClick={openAddModal} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition-colors flex items-center gap-2">
+                            <Plus size={20} /> إضافة عميل
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            {/* Data Table */}
-            <div className="w-full overflow-x-auto bg-slate-800 rounded-xl border border-slate-700 shadow-xl">
-                <table className="w-full text-right whitespace-nowrap">
-                    <thead className="bg-slate-900 text-slate-300 border-b border-slate-700">
-                        <tr>
-                            <th className="p-4 font-semibold">الرقم</th>
-                            <th className="p-4 font-semibold">الاسم</th>
-                            <th className="p-4 font-semibold">الهاتف</th>
-                            <th className="p-4 font-semibold">البريد الإلكتروني</th>
-                            <th className="p-4 font-semibold text-center">إجراءات</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-700/50">
-                        {loading ? (
-                            <tr>
-                                <td colSpan="5" className="p-8 text-center text-slate-400">
-                                    جاري التحميل...
-                                </td>
-                            </tr>
-                        ) : filteredCustomers.length === 0 ? (
-                            <tr>
-                                <td colSpan="5" className="p-8 text-center text-slate-400">
-                                    لا توجد بيانات متاحة.
-                                </td>
-                            </tr>
-                        ) : (
-                            filteredCustomers.map(customer => (
-                                <tr key={customer.id} className="hover:bg-slate-700/30 transition-colors">
-                                    <td className="p-4 text-slate-400">{customer.id}</td>
-                                    <td className="p-4 font-medium text-white">{customer.name}</td>
-                                    <td className="p-4">{customer.phone}</td>
-                                    <td className="p-4">{customer.email}</td>
-                                    <td className="p-4">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button onClick={() => editCustomer(customer)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-full transition-colors" title="تعديل">
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button onClick={() => confirmDelete(customer)} className="p-2 text-rose-400 hover:bg-rose-400/10 rounded-full transition-colors" title="حذف">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
+                {/* الجدول */}
+                <div className="bg-[#0F172A] rounded-2xl shadow-lg border border-slate-800 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-right text-sm">
+                            <thead className="bg-slate-900/50 text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th className="p-4 font-semibold">اسم العميل</th>
+                                    <th className="p-4 font-semibold">الهاتف / الإيميل</th>
+                                    <th className="p-4 font-semibold">المدينة</th>
+                                    <th className="p-4 font-semibold">الرصيد</th>
+                                    <th className="p-4 font-semibold text-center">إجراءات</th>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {loading ? (
+                                    <tr><td colSpan="5" className="p-8 text-center text-slate-500">جاري تحميل البيانات...</td></tr>
+                                ) : customers.length === 0 ? (
+                                    <tr><td colSpan="5" className="p-8 text-center text-slate-500">لا يوجد عملاء مسجلين حالياً.</td></tr>
+                                ) : (
+                                    customers.map((c) => (
+                                        <tr key={c.id} className="hover:bg-slate-800/50 transition-colors">
+                                            <td className="p-4 font-bold text-white">{c.name}</td>
+                                            <td className="p-4 text-slate-300">
+                                                <div dir="ltr" className="text-right text-blue-400 font-mono">{c.phone || '-'}</div>
+                                                <div className="text-xs text-slate-500">{c.email}</div>
+                                            </td>
+                                            <td className="p-4 text-slate-300">{c.city || '-'}</td>
+                                            <td className="p-4 text-emerald-400 font-mono font-bold">{Number(c.balance).toFixed(2)}</td>
+                                            <td className="p-4 flex justify-center gap-2">
+                                                <button onClick={() => openEditModal(c)} className="p-2 bg-slate-800 hover:bg-blue-500/20 hover:text-blue-400 border border-slate-700 rounded-lg transition-colors"><Edit size={16} /></button>
+                                                <button onClick={() => handleDelete(c.id)} className="p-2 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 border border-slate-700 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
-            {isModalOpen && createPortal(modalContent, document.body)}
-            {isDeleteModalOpen && createPortal(deleteModalContent, document.body)}
+                {/* النافذة المنبثقة (Modal) للإضافة والتعديل */}
+                {showModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                            <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/30">
+                                <h2 className="text-xl font-bold text-white">{isEditing ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</h2>
+                                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white p-2 bg-slate-800 rounded-lg transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1">اسم العميل <span className="text-red-500">*</span></label>
+                                    <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full bg-[#0B1120] border border-slate-700 rounded-xl p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-slate-400 mb-1">رقم الهاتف</label>
+                                        <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-xl p-3 text-white focus:border-blue-500 outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-slate-400 mb-1">المدينة</label>
+                                        <input type="text" name="city" value={formData.city} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-xl p-3 text-white focus:border-blue-500 outline-none" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1">البريد الإلكتروني</label>
+                                    <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-xl p-3 text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1">الرصيد الافتتاحي</label>
+                                    <input type="number" step="0.01" name="balance" value={formData.balance} onChange={handleInputChange} className="w-full bg-[#0B1120] border border-slate-700 rounded-xl p-3 text-white focus:border-blue-500 outline-none font-mono" />
+                                </div>
+                                <div className="pt-4 flex gap-3">
+                                    <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors">
+                                        {isEditing ? 'حفظ التعديلات' : 'إضافة العميل'}
+                                    </button>
+                                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors border border-slate-700">
+                                        إلغاء
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+            </div>
         </div>
     );
 };
