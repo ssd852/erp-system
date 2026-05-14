@@ -7,10 +7,10 @@ const FixedAssets = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
-    const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+    const [deleteModal, setDeleteModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ asset_name: '', purchase_date: '', value: 0, salvage_value: 0, useful_life_years: 0, depreciation_method: 'Straight Line', depreciation_rate: 0 });
+    const [form, setForm] = useState({ asset_name: '', purchase_date: '', value: '', salvage_value: '', useful_life_years: '', depreciation_method: 'Straight Line', depreciation_rate: '' });
 
     const fetchData = async () => {
         setLoading(true);
@@ -23,95 +23,79 @@ const FixedAssets = () => {
 
     useEffect(() => { fetchData(); }, []);
 
-    const openAdd = () => {
-        setFormData({ asset_name: '', purchase_date: new Date().toISOString().split('T')[0], value: 0, salvage_value: 0, useful_life_years: 0, depreciation_method: 'Straight Line', depreciation_rate: 0 });
-        setIsEditing(false);
-        setShowModal(true);
-    };
+    const openAdd = () => { setForm({ asset_name: '', purchase_date: new Date().toISOString().split('T')[0], value: '', salvage_value: '', useful_life_years: '', depreciation_method: 'Straight Line', depreciation_rate: '' }); setIsEditing(false); setShowModal(true); };
+    const openEdit = (item) => { setForm({ id: item.id, asset_name: item.asset_name || '', purchase_date: item.purchase_date || '', value: item.value || '', salvage_value: item.salvage_value || '', useful_life_years: item.useful_life_years || '', depreciation_method: item.depreciation_method || 'Straight Line', depreciation_rate: item.depreciation_rate || '' }); setIsEditing(true); setShowModal(true); };
 
-    const openEdit = (item) => {
-        setFormData({ id: item.id, asset_name: item.asset_name || '', purchase_date: item.purchase_date || '', value: item.value || 0, salvage_value: item.salvage_value || 0, useful_life_years: item.useful_life_years || 0, depreciation_method: item.depreciation_method || 'Straight Line', depreciation_rate: item.depreciation_rate || 0 });
-        setIsEditing(true);
-        setShowModal(true);
-    };
+    const n = (v) => parseFloat(String(v || 0).replace(/[^0-9.-]+/g, '')) || 0;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        const n = (v) => parseFloat(String(v || 0).replace(/[^0-9.-]+/g, '')) || 0;
-        const payload = {
-            asset_name: formData.asset_name,
-            purchase_date: formData.purchase_date || null,
-            value: n(formData.value),
-            salvage_value: n(formData.salvage_value),
-            useful_life_years: n(formData.useful_life_years),
-            depreciation_method: formData.depreciation_method,
-            depreciation_rate: n(formData.depreciation_rate),
-            user_id: user.id
-        };
-        if (isEditing) {
-            await supabase.from('fixed_assets').update(payload).eq('id', formData.id);
-        } else {
-            await supabase.from('fixed_assets').insert([payload]);
-        }
-        setShowModal(false);
-        fetchData();
+        const payload = { asset_name: form.asset_name, purchase_date: form.purchase_date || null, value: n(form.value), salvage_value: n(form.salvage_value), useful_life_years: n(form.useful_life_years), depreciation_method: form.depreciation_method, depreciation_rate: n(form.depreciation_rate), user_id: user.id };
+        if (isEditing) { await supabase.from('fixed_assets').update(payload).eq('id', form.id); }
+        else { await supabase.from('fixed_assets').insert([payload]); }
+        setShowModal(false); fetchData();
     };
 
     const handleDelete = async () => {
         if (!itemToDelete) return;
         await supabase.from('fixed_assets').delete().eq('id', itemToDelete.id);
-        setDeleteDialogVisible(false);
-        setItemToDelete(null);
-        fetchData();
+        setDeleteModal(false); setItemToDelete(null); fetchData();
     };
 
-    const filtered = items.filter(i =>
-        (i.asset_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = items.filter(i => (i.asset_name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
-        <div className="p-6 w-full" dir="rtl">
-            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
-                <div className="flex items-center justify-between p-5 border-b border-slate-800">
-                    <div className="flex items-center gap-3">
-                        <button onClick={openAdd} className="flex items-center gap-2 bg-[#22C55E] hover:bg-green-600 text-white font-bold px-4 py-2.5 rounded-lg transition-colors">
-                            <Plus size={18} /> إضافة أصل
-                        </button>
-                        <div className="relative">
-                            <input type="text" placeholder="بحث..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                                className="bg-slate-800 border border-slate-700 text-white rounded-lg py-2.5 px-4 pl-10 w-60 outline-none focus:border-blue-500" />
-                            <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-                        </div>
+        <div className="p-6 w-full min-h-screen bg-[#0B1120]" dir="rtl">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">الأصول الثابتة</h2>
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <input type="text" placeholder="بحث..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg py-2.5 px-4 pl-10 w-64 outline-none focus:border-blue-500 transition-colors" />
+                        <Search size={16} className="absolute left-3 top-3 text-slate-400" />
                     </div>
-                    <h2 className="text-xl font-bold text-white">الأصول الثابتة</h2>
+                    <button onClick={openAdd} className="bg-[#22C55E] hover:bg-[#16a34a] text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-bold transition-colors">
+                        <Plus size={18} /> إضافة أصل
+                    </button>
                 </div>
+            </div>
+
+            <div className="bg-[#0F172A] rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-right">
-                        <thead className="bg-slate-800/50 text-slate-400 border-b border-slate-800">
+                        <thead className="bg-slate-800/60 text-slate-400 border-b border-slate-800">
                             <tr>
-                                <th className="p-4">#</th><th className="p-4">اسم الأصل</th><th className="p-4">تاريخ الشراء</th>
-                                <th className="p-4">القيمة</th><th className="p-4">قيمة الخردة</th>
-                                <th className="p-4">طريقة الإهلاك</th><th className="p-4">العمر</th><th className="p-4 text-center">إجراءات</th>
+                                <th className="p-4 font-semibold">#</th>
+                                <th className="p-4 font-semibold">اسم الأصل</th>
+                                <th className="p-4 font-semibold">تاريخ الشراء</th>
+                                <th className="p-4 font-semibold">القيمة</th>
+                                <th className="p-4 font-semibold">قيمة الخردة</th>
+                                <th className="p-4 font-semibold">طريقة الإهلاك</th>
+                                <th className="p-4 font-semibold">العمر</th>
+                                <th className="p-4 font-semibold text-center">إجراءات</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {loading ? <tr><td colSpan={8} className="p-8 text-center text-slate-500">جاري التحميل...</td></tr>
-                            : filtered.length === 0 ? <tr><td colSpan={8} className="p-8 text-center text-slate-500">لا توجد أصول.</td></tr>
-                            : filtered.map((item, idx) => (
-                                <tr key={item.id} className="hover:bg-slate-800/40 transition-colors text-slate-300">
+                        <tbody className="divide-y divide-slate-800/70">
+                            {loading ? (
+                                <tr><td colSpan={8} className="p-10 text-center text-slate-500">جاري التحميل...</td></tr>
+                            ) : filtered.length === 0 ? (
+                                <tr><td colSpan={8} className="p-10 text-center text-slate-500">لا توجد أصول.</td></tr>
+                            ) : filtered.map((item, idx) => (
+                                <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
                                     <td className="p-4 text-slate-500">{idx + 1}</td>
                                     <td className="p-4 font-semibold text-white">{item.asset_name}</td>
-                                    <td className="p-4">{item.purchase_date || '-'}</td>
-                                    <td className="p-4 text-emerald-400 font-mono">${Number(item.value || 0).toLocaleString()}</td>
+                                    <td className="p-4 text-slate-300">{item.purchase_date || '-'}</td>
+                                    <td className="p-4 text-emerald-400 font-mono font-bold">${Number(item.value || 0).toLocaleString()}</td>
                                     <td className="p-4 text-slate-400 font-mono">${Number(item.salvage_value || 0).toLocaleString()}</td>
-                                    <td className="p-4">{item.depreciation_method || '-'}</td>
-                                    <td className="p-4">{item.useful_life_years || 0} سنوات</td>
-                                    <td className="p-4"><div className="flex gap-2 justify-center">
-                                        <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Edit size={16} /></button>
-                                        <button onClick={() => { setItemToDelete(item); setDeleteDialogVisible(true); }} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20"><Trash2 size={16} /></button>
-                                    </div></td>
+                                    <td className="p-4 text-slate-300">{item.depreciation_method || '-'}</td>
+                                    <td className="p-4 text-slate-300">{item.useful_life_years || 0} سنوات</td>
+                                    <td className="p-4">
+                                        <div className="flex gap-2 justify-center">
+                                            <button onClick={() => openEdit(item)} className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"><Edit size={15} /></button>
+                                            <button onClick={() => { setItemToDelete(item); setDeleteModal(true); }} className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"><Trash2 size={15} /></button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -120,72 +104,65 @@ const FixedAssets = () => {
             </div>
 
             {showModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl max-h-screen overflow-y-auto">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between p-5 border-b border-slate-800">
                             <h3 className="text-lg font-bold text-white">{isEditing ? 'تعديل الأصل' : 'إضافة أصل جديد'}</h3>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><X size={20} /></button>
+                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-5 space-y-4">
                             <div>
                                 <label className="block text-sm text-slate-400 mb-1.5">اسم الأصل *</label>
-                                <input required type="text" value={formData.asset_name} onChange={e => setFormData({ ...formData, asset_name: e.target.value })}
-                                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" />
+                                <input required type="text" value={form.asset_name} onChange={e => setForm({ ...form, asset_name: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1.5">تاريخ الشراء</label>
-                                    <input type="date" value={formData.purchase_date} onChange={e => setFormData({ ...formData, purchase_date: e.target.value })}
-                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" />
+                                    <input type="date" value={form.purchase_date} onChange={e => setForm({ ...form, purchase_date: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" />
                                 </div>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1.5">طريقة الإهلاك</label>
-                                    <input type="text" value={formData.depreciation_method} onChange={e => setFormData({ ...formData, depreciation_method: e.target.value })}
-                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" />
+                                    <input type="text" value={form.depreciation_method} onChange={e => setForm({ ...form, depreciation_method: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1.5">القيمة</label>
-                                    <input type="text" value={formData.value} onChange={e => setFormData({ ...formData, value: e.target.value })}
-                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
+                                    <label className="block text-sm text-slate-400 mb-1.5">القيمة الأصلية</label>
+                                    <input type="text" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" dir="ltr" />
                                 </div>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1.5">قيمة الخردة</label>
-                                    <input type="text" value={formData.salvage_value} onChange={e => setFormData({ ...formData, salvage_value: e.target.value })}
-                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
+                                    <input type="text" value={form.salvage_value} onChange={e => setForm({ ...form, salvage_value: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" dir="ltr" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1.5">العمر (سنوات)</label>
-                                    <input type="text" value={formData.useful_life_years} onChange={e => setFormData({ ...formData, useful_life_years: e.target.value })}
-                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
+                                    <label className="block text-sm text-slate-400 mb-1.5">العمر الإنتاجي (سنوات)</label>
+                                    <input type="text" value={form.useful_life_years} onChange={e => setForm({ ...form, useful_life_years: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" dir="ltr" />
                                 </div>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1.5">الإهلاك الحالي</label>
-                                    <input type="text" value={formData.depreciation_rate} onChange={e => setFormData({ ...formData, depreciation_rate: e.target.value })}
-                                        className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500" dir="ltr" />
+                                    <input type="text" value={form.depreciation_rate} onChange={e => setForm({ ...form, depreciation_rate: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-blue-500 transition-colors" dir="ltr" />
                                 </div>
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-green-600 text-white font-bold py-3 rounded-lg">حفظ</button>
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg border border-slate-700">إلغاء</button>
+                                <button type="submit" className="flex-1 bg-[#22C55E] hover:bg-[#16a34a] text-white font-bold py-3 rounded-lg transition-colors">حفظ</button>
+                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg border border-slate-700 transition-colors">إلغاء</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {deleteDialogVisible && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            {deleteModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="bg-[#0F172A] border border-slate-700 rounded-xl w-full max-w-sm shadow-2xl p-6 text-center">
                         <div className="w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mx-auto mb-4"><Trash2 size={28} className="text-red-400" /></div>
                         <h3 className="text-lg font-bold text-white mb-2">تأكيد الحذف</h3>
-                        <p className="text-slate-400 mb-6 text-sm">هل أنت متأكد من حذف هذا الأصل؟</p>
+                        <p className="text-slate-400 mb-6 text-sm">هل أنت متأكد من حذف <span className="text-white font-semibold">{itemToDelete?.asset_name}</span>؟</p>
                         <div className="flex gap-3">
-                            <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg">حذف</button>
-                            <button onClick={() => setDeleteDialogVisible(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-lg border border-slate-700">إلغاء</button>
+                            <button onClick={handleDelete} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg transition-colors">نعم، احذف</button>
+                            <button onClick={() => setDeleteModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-lg border border-slate-700 transition-colors">إلغاء</button>
                         </div>
                     </div>
                 </div>
